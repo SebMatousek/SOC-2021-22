@@ -7,6 +7,58 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Servo.h>
+#include <ESP32MotorControl.h>
+#include <ESP32Encoder.h>
+
+void Robot::delete_enc_value(int motor)
+{
+    if(motor == 0)
+    {
+        encoder0->clearCount();
+    }
+    else
+    {
+        encoder1->clearCount();
+    }
+}
+
+int Robot::get_enc_value(int motor)
+{
+    if(motor == 0)
+    {
+        return encoder0->getCount();
+    }
+    else
+    {
+        return encoder1->getCount();
+    }
+}
+
+int Robot::get_motor_speed(int motor)
+{
+    return MotorControl.getMotorSpeed(motor);
+}
+
+void Robot::motorSpeed(int motor, int speed)
+{   
+    if(speed > 0 && speed <= 100)
+    {
+        MotorControl.motorForward(motor, speed);
+    }
+    else if(speed < 0 && speed >= -100)
+    {
+        MotorControl.motorReverse(motor, speed);
+    }
+    else if(speed == 0)
+    {
+        MotorControl.motorStop(motor);
+    }
+    else
+    {   
+        MotorControl.motorStop(motor);
+        Serial.println("Not a valid motor speed!");
+    }
+}
 
 void Robot::servoBegin()
 {
@@ -73,13 +125,19 @@ void Robot::soundBootUp()
 }
 
 Robot::Robot()
-{   
+{
     Wire.begin();
     display->begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS);
 
     Serial.begin(115200);
 
     pinMode(buzzerPin, OUTPUT);
+
+    pinMode(in1, OUTPUT);
+    pinMode(in2, OUTPUT);
+    pinMode(in3, OUTPUT);
+    pinMode(in4, OUTPUT);
+    MotorControl.attachMotors(in2, in1, in3, in4);
 
     sensor->begin();
 
@@ -88,4 +146,10 @@ Robot::Robot()
     display->clear();
 
     servoBegin();
+
+    ESP32Encoder::useInternalWeakPullResistors=UP;
+    encoder0->attachHalfQuad(34, 35);
+    encoder1->attachHalfQuad(4, 19);
+    encoder0->clearCount();
+    encoder1->clearCount();
 }
