@@ -10,7 +10,7 @@
 #include <Servo.h>
 #include <ESP32MotorControl.h>
 #include <ESP32Encoder.h>
-
+#include <Adafruit_VL53L0X.h>
 
 class Robot {
 
@@ -28,11 +28,23 @@ public:
     void set_servoPos(int pos);
 
     void motorSpeed(int motor, int speed);
+    void bothMotorSpeed(int speed);
     int get_motor_speed(int motor);
+    void turn90(String direction);
+    void turnWheel(int motor, float rotations);
+    void turnWheels(float rotations0, float rotations1);
+    void stopMotor(int motor);
+    void stopMotors();
 
     int get_enc_value(int motor);
     void delete_enc_value(int motor);
 
+    int get_lidar();
+
+
+    const int servoMin = 0;
+    const int servoMax = 180;
+    
 
 private:
     const float batteryMax = 3150.0;
@@ -58,8 +70,6 @@ private:
     // LiDar Servo
     Servo servo;
     int servoPos = 90;
-    const int servoMin = 10;
-    const int servoMax = 170;
 
     // motor controller
     ESP32MotorControl MotorControl = ESP32MotorControl();
@@ -68,8 +78,13 @@ private:
     const int in3 = 26;
     const int in4 = 27;
 
+    const int revolutionClicks = 4172;
+
     ESP32Encoder *encoder0 = new ESP32Encoder();
     ESP32Encoder *encoder1 = new ESP32Encoder();
+
+    //LiDAR
+    Adafruit_VL53L0X *lidar = new Adafruit_VL53L0X();
 
     void soundBootUp();
     void displayBegin();

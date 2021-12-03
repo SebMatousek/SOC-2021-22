@@ -3,105 +3,208 @@
 
 Robot *robot;
 
-const int revolutionClicks = 4172;
+long long int timer = -1;
+const int timeDelay = 50;
+const int stopDistance = 140;
+const int checkDelay = 50;
+const unsigned int motorSpeedCushion = 6;
+const unsigned int distanceCushion = 8;
+int lastDistance = stopDistance;
 
-/*
-unsigned long long timer = 0;
-const unsigned int timeDelay = 100;
-const unsigned int padding = 1;
+int wallDistances[18];
+const int WALL_ANGLE_COUNT = 18;
 
-void encCheck()
+bool firstWall = true;
+
+void checkSide()
 {
-  if(robot->get_relative_motor_speed(0) != 0 && robot->get_relative_motor_speed(1) != 0)
+  robot->set_servoPos(robot->servoMin);
+
+  delay(150);
+
+  int lidarValue = robot->get_lidar();
+
+  if (lidarValue > lastDistance + stopDistance)
   {
-    int mr0 = robot->get_motor_speed(0);
-    int mr1 = robot->get_motor_speed(1);
-
-    int m0 = robot->get_relative_motor_speed(0);
-    int m1 = robot->get_relative_motor_speed(1);
-    int e0 = robot->get_enc_value(0);
-    int e1 = robot->get_enc_value(1);
-
-    float motorComp = float(m0) / m1;
-    float encComp = float(e0) / e1;
-
-    if (motorComp > encComp)
+    robot->turnWheels(1, 1);
+    robot->turn90("right");
+    delay(500);
+    robot->motorSpeed(0, 100);
+    robot->motorSpeed(1, 100);
+  }
+  else if (lidarValue > stopDistance + distanceCushion)
+  {
+    if (robot->get_motor_speed(1) > 50 + motorSpeedCushion)
     {
-      Serial.println("left is slower by.. " + String(motorComp) + "  while enc... " + String(encComp));
-      if (mr0 <= 100 - padding)
-      {
-        robot->motorSpeed(0, mr0 + padding, false);
-      }
-      else if (mr1 >= 0 + padding)
-      {
-        robot->motorSpeed(1, mr1 - padding, false);
-      }
-    }
-    else if(motorComp < encComp)
-    {
-      Serial.println("right is slower by.. " + String(motorComp) + "while enc... " + String(encComp));
-      if (mr1 <= 100 - padding)
-      {
-        robot->motorSpeed(1, mr1 + padding, false);
-      }
-      else if (mr0 >= 0 + padding)
-      {
-        robot->motorSpeed(0, mr0 - padding, false);
-      }
+      robot->motorSpeed(1, robot->get_motor_speed(1) - motorSpeedCushion);
     }
 
-      robot->delete_enc_value(0);
-      robot->delete_enc_value(1);
+    //Serial.println("to far");
+  }
+  else if (lidarValue < stopDistance - distanceCushion)
+  {
+    if (robot->get_motor_speed(0) > 50 + motorSpeedCushion)
+    {
+      robot->motorSpeed(0, robot->get_motor_speed(0) - motorSpeedCushion);
+    }
 
-      Serial.println("left... " + String(robot->get_motor_speed(0)));
-      Serial.println("right... " + String(robot->get_motor_speed(1)));
+    //Serial.println("to close");
+  }
+  else
+  {
+    //Serial.println("sweetspot");
+    robot->motorSpeed(0, 100);
+    robot->motorSpeed(1, 100);
   }
 
-  Serial.println("left enc..." + String(robot->get_enc_value(0)));
-  Serial.println("right enc..." + String(robot->get_enc_value(1)));
-  robot->delete_enc_value(0);
-  robot->delete_enc_value(1);
-}*/
-
-void turn(int angle)
-{
-  robot->delete_enc_value(0);
-  robot->delete_enc_value(1);
-
-  bool leftTurned = false;
-  bool rightTurned = false;
-
-  robot->motorSpeed(0, 100);
-  robot->motorSpeed(1, -100);
-  
-  while(!leftTurned || !rightTurned)
-  { 
-
-    Serial.println("left... " + String(robot->get_enc_value(0)));
-    Serial.println("right... " + String(robot->get_enc_value(1)));
-
-    if(abs(robot->get_enc_value(0)) > abs(revolutionClicks*0.55))
-    {
-      robot->motorSpeed(0, 0);
-      leftTurned = true;
-    }
-    if(abs(robot->get_enc_value(1)) > abs(revolutionClicks*0.55))
-    {
-      robot->motorSpeed(1, 0);
-      rightTurned = true;
-    }
-  }
+  lastDistance = lidarValue;
 }
 
-void setup() {
-  robot = new Robot();
+bool checkForward()
+{
+  robot->set_servoPos(95);
 
+  delay(140);
+
+  int lidarValue = robot->get_lidar();
+
+  if (lidarValue < stopDistance && lidarValue > 0)
+  {
+    return false;
+  }
+
+  return true;
+}
+
+void amInWall();
+
+void rideAlongWall()
+{
   robot->motorSpeed(0, 100);
   robot->motorSpeed(1, 100);
 
-  turn(1);
+  while (checkForward())
+  {
+    delay(checkDelay);
+    checkSide();
+    delay(checkDelay);
+  }
+
+  amInWall();
 }
 
-void loop() {
+void measureWallAngle()
+{
+  for (int i = 0; i < WALL_ANGLE_COUNT; i++)
+  {
+    wallDistances[i] = -1;
+  }
 
+  for (int i = 0; i < 180; i += 10)
+  {
+    robot->set_servoPos(i);
+    delay(150);
+    wallDistances[i / 10] = robot->get_lidar();
+    delay(10);
+  }
+
+  int smallestDistance = 8200;
+  int bestAngle = 0;
+
+  for (int i = 0; i < WALL_ANGLE_COUNT; i++)
+  {
+    //Serial.println(wallDistances[i]);
+    if (smallestDistance > wallDistances[i] && wallDistances[i] > 0)
+    {
+      smallestDistance = wallDistances[i];
+      bestAngle = i * 10;
+    }
+  }
+
+  //Serial.println(bestAngle);
+
+  if (bestAngle != 90)
+  {
+
+    robot->set_servoPos(90);
+    delay(150);
+
+    bool distance_reached = false;
+    int speed = 15;
+
+    if(bestAngle < 90)
+    {
+        robot->motorSpeed(1, -speed);
+        robot->motorSpeed(0, speed + 5);
+    }
+    else
+    {
+        robot->motorSpeed(0, -speed);
+        robot->motorSpeed(1, speed + 5);
+    }
+
+    while (!distance_reached)
+    {
+      int lidarValue = robot->get_lidar();
+
+      if(lidarValue < smallestDistance + 10 && lidarValue > 0)
+      {
+        robot->stopMotors();
+        distance_reached = true;
+      } 
+    }
+  }
+}
+
+void amInWall()
+{
+  //Serial.println("timer went off");
+
+  int lidarValue = robot->get_lidar();
+
+  if (lidarValue < stopDistance && lidarValue > 0)
+  {
+    //Serial.println(lidarValue);
+    robot->stopMotors();
+
+    if(firstWall)
+    { 
+      measureWallAngle();
+      delay(300);
+      firstWall = false;
+    }
+
+    timer = -1;
+    
+    robot->turn90("left");
+    delay(300);
+    rideAlongWall();
+  }
+  else
+  {
+    timer = millis();
+  }
+}
+
+void getToWall()
+{
+  robot->motorSpeed(0, 100);
+  robot->motorSpeed(1, 100);
+
+  timer = millis();
+}
+
+void setup()
+{
+  robot = new Robot();
+
+  getToWall();
+}
+
+void loop()
+{
+  if (timer != -1 && millis() > timer + timeDelay)
+  {
+    amInWall();
+  }
 }
