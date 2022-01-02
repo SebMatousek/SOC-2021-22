@@ -54,11 +54,23 @@ void Robot::turn90(String direction)
 
 void Robot::stopMotors()
 {
-    MotorControl.motorsStop();
+    stopMotor(0);
+    stopMotor(1);
 }
 
 void Robot::stopMotor(int motor)
 {
+    if(MotorControl.isMotorForward(motor))
+    {
+        motorSpeed(motor, -100);
+    }
+    else
+    {
+        motorSpeed(motor, 100);
+    }
+
+    delay(15);
+
     MotorControl.motorStop(motor);
 }
 

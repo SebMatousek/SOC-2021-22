@@ -7,14 +7,54 @@ long long int timer = -1;
 const int timeDelay = 50;
 const int stopDistance = 140;
 const int checkDelay = 50;
-const unsigned int motorSpeedCushion = 6;
-const unsigned int distanceCushion = 8;
+const unsigned int motorSpeedCushion = 7;
+const unsigned int distanceCushion = 7;
 int lastDistance = stopDistance;
 
 int wallDistances[18];
 const int WALL_ANGLE_COUNT = 18;
 
 bool firstWall = true;
+
+void turnByAngle(int angle)
+{
+  robot->delete_enc_value(0);
+  robot->delete_enc_value(1);
+
+  if(angle > 0)
+  {
+    robot->motorSpeed(0, 50);
+    robot->motorSpeed(1, -50);
+  }
+  else
+  {
+    robot->motorSpeed(0, -50);
+    robot->motorSpeed(1, 50);
+  }
+
+  bool finished0 = false;
+  bool finished1 = false;
+
+  int rotations0 = robot->revolutionClicks * abs(angle / 180.0);
+  int rotations1 = robot->revolutionClicks * abs(angle / 180.0);
+
+  //Serial.println(rotations0);
+  //Serial.println(rotations1);
+
+  while(!finished0 || !finished1)
+  {
+    if(abs(robot->get_enc_value(0)) > rotations0)
+    {
+      finished0 = true;
+    }
+    if(abs(robot->get_enc_value(1)) > rotations1)
+    {
+      finished1 = true;
+    }
+  }
+
+  robot->stopMotors();
+}
 
 void checkSide()
 {
@@ -27,8 +67,8 @@ void checkSide()
   if (lidarValue > lastDistance + stopDistance)
   {
     robot->turnWheels(1, 1);
-    robot->turn90("right");
-    delay(500);
+    turnByAngle(97);
+    delay(1000);
     robot->motorSpeed(0, 100);
     robot->motorSpeed(1, 100);
   }
@@ -125,34 +165,7 @@ void measureWallAngle()
 
   if (bestAngle != 90)
   {
-
-    robot->set_servoPos(90);
-    delay(150);
-
-    bool distance_reached = false;
-    int speed = 15;
-
-    if(bestAngle < 90)
-    {
-        robot->motorSpeed(1, -speed);
-        robot->motorSpeed(0, speed + 5);
-    }
-    else
-    {
-        robot->motorSpeed(0, -speed);
-        robot->motorSpeed(1, speed + 5);
-    }
-
-    while (!distance_reached)
-    {
-      int lidarValue = robot->get_lidar();
-
-      if(lidarValue < smallestDistance + 10 && lidarValue > 0)
-      {
-        robot->stopMotors();
-        distance_reached = true;
-      } 
-    }
+    turnByAngle(90 - bestAngle);
   }
 }
 
@@ -170,14 +183,14 @@ void amInWall()
     if(firstWall)
     { 
       measureWallAngle();
-      delay(300);
+      delay(1000);
       firstWall = false;
     }
 
     timer = -1;
     
-    robot->turn90("left");
-    delay(300);
+    turnByAngle(-95);
+    delay(1000);
     rideAlongWall();
   }
   else

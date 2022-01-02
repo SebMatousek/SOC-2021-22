@@ -44,7 +44,7 @@ public:
 
     const int servoMin = 0;
     const int servoMax = 180;
-    
+    const int revolutionClicks = 4172;
 
 private:
     const float batteryMax = 3150.0;
@@ -77,8 +77,6 @@ private:
     const int in2 = 25;
     const int in3 = 26;
     const int in4 = 27;
-
-    const int revolutionClicks = 4172;
 
     ESP32Encoder *encoder0 = new ESP32Encoder();
     ESP32Encoder *encoder1 = new ESP32Encoder();
