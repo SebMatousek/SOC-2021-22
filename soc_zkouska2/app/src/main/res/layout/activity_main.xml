@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity"
+    android:background="@drawable/background">
+
+    <TextView
+        android:id="@+id/tvName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="70dp"
+        android:gravity="center_horizontal"
+        android:text="Roboti"
+        android:textColor="@color/white"
+        android:textSize="40sp"
+        android:textStyle="bold"
+        app:layout_constraintTop_toTopOf="parent"
+        />
+
+    <Button
+        android:id="@+id/btnMap"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginHorizontal="8dp"
+        android:text="Mapa"
+        android:textAllCaps="false"
+        app:layout_constraintTop_toBottomOf="@+id/tvName"
+        android:textSize="25sp"
+        android:textColor="@color/white"
+        />
+
+    <Button
+        android:id="@+id/btnOvl"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginHorizontal="8dp"
+        android:text="Ovladnout robota"
+        android:textAllCaps="false"
+        app:layout_constraintTop_toBottomOf="@+id/btnMap"
+        android:textSize="25sp"
+        android:textColor="@color/white"/>
+
+    <Button
+        android:id="@+id/btnSenz"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginHorizontal="8dp"
+        android:text="Senzory"
+        android:textAllCaps="false"
+        app:layout_constraintTop_toBottomOf="@+id/btnOvl"
+        android:textSize="25sp"
+        android:textColor="@color/white"/>
+
+    <Button
+        android:id="@+id/btnDeb"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:layout_marginTop="30dp"
+        android:layout_marginHorizontal="8dp"
+        android:text="Debug"
+        android:textAllCaps="false"
+        app:layout_constraintTop_toBottomOf="@+id/btnSenz"
+        android:textSize="25sp"
+        android:textColor="@color/white"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
