@@ -3,12 +3,13 @@
 
 Robot *robot;
 
-long long int timer = -1;
-const int timeDelay = 50;
-const int stopDistance = 140;
+long long int dataTimer = 0;
+const int dataTimerDelay = 1000;
+
+const int stopDistance = 95;
 const int checkDelay = 50;
-const unsigned int motorSpeedCushion = 7;
-const unsigned int distanceCushion = 7;
+const unsigned int motorSpeedCushion = 8;
+const unsigned int distanceCushion = 6;
 int lastDistance = stopDistance;
 
 int wallDistances[18];
@@ -16,44 +17,45 @@ const int WALL_ANGLE_COUNT = 18;
 
 bool firstWall = true;
 
-void turnByAngle(int angle)
+bool mapping = false;
+
+int robotSpeed = 80;
+
+void central(String data)
 {
-  robot->delete_enc_value(0);
-  robot->delete_enc_value(1);
-
-  if(angle > 0)
+  if (data.equals("-"))
   {
-    robot->motorSpeed(0, 50);
-    robot->motorSpeed(1, -50);
+    return;
   }
-  else
+  else if (data.equals("go"))
   {
-    robot->motorSpeed(0, -50);
-    robot->motorSpeed(1, 50);
+    mapping = true;
   }
-
-  bool finished0 = false;
-  bool finished1 = false;
-
-  int rotations0 = robot->revolutionClicks * abs(angle / 180.0);
-  int rotations1 = robot->revolutionClicks * abs(angle / 180.0);
-
-  //Serial.println(rotations0);
-  //Serial.println(rotations1);
-
-  while(!finished0 || !finished1)
+  else if (data.equals("stop"))
   {
-    if(abs(robot->get_enc_value(0)) > rotations0)
-    {
-      finished0 = true;
-    }
-    if(abs(robot->get_enc_value(1)) > rotations1)
-    {
-      finished1 = true;
-    }
+    mapping = false;
   }
+}
 
-  robot->stopMotors();
+void readIncoming()
+{
+  String data = robot->readData();
+  central(data);
+}
+
+void sendSensorData()
+{
+  if (millis() > dataTimer + dataTimerDelay)
+  {
+    dataTimer = millis();
+    robot->sendSensorData();
+  }
+}
+
+void communicateWithPhone()
+{
+  sendSensorData();
+  readIncoming();
 }
 
 void checkSide()
@@ -66,11 +68,19 @@ void checkSide()
 
   if (lidarValue > lastDistance + stopDistance)
   {
-    robot->turnWheels(1, 1);
-    turnByAngle(97);
+    robot->turnWheels(1.25, 1.25);
+
+    robot->sendMapData();
+
+    robot->turnByAngle(90);
+    robot->countTurnAngle(90);
+
+    robot->delete_enc_value(0);
+    robot->delete_enc_value(1);
+
     delay(1000);
-    robot->motorSpeed(0, 100);
-    robot->motorSpeed(1, 100);
+    robot->motorSpeed(0, robotSpeed);
+    robot->motorSpeed(1, robotSpeed);
   }
   else if (lidarValue > stopDistance + distanceCushion)
   {
@@ -93,8 +103,8 @@ void checkSide()
   else
   {
     //Serial.println("sweetspot");
-    robot->motorSpeed(0, 100);
-    robot->motorSpeed(1, 100);
+    robot->motorSpeed(0, robotSpeed);
+    robot->motorSpeed(1, robotSpeed);
   }
 
   lastDistance = lidarValue;
@@ -120,8 +130,10 @@ void amInWall();
 
 void rideAlongWall()
 {
-  robot->motorSpeed(0, 100);
-  robot->motorSpeed(1, 100);
+  robot->delete_enc_value(0);
+  robot->delete_enc_value(1);
+
+  robot->bothMotorSpeed(robotSpeed);
 
   while (checkForward())
   {
@@ -130,7 +142,8 @@ void rideAlongWall()
     delay(checkDelay);
   }
 
-  amInWall();
+  robot->stopMotors();
+  loop();
 }
 
 void measureWallAngle()
@@ -165,59 +178,65 @@ void measureWallAngle()
 
   if (bestAngle != 90)
   {
-    turnByAngle(90 - bestAngle);
+    robot->turnByAngle(90 - bestAngle);
   }
 }
 
 void amInWall()
 {
-  //Serial.println("timer went off");
-
-  int lidarValue = robot->get_lidar();
-
-  if (lidarValue < stopDistance && lidarValue > 0)
+  if (mapping)
   {
-    //Serial.println(lidarValue);
-    robot->stopMotors();
+    int lidarValue = robot->get_lidar();
 
-    if(firstWall)
-    { 
-      measureWallAngle();
-      delay(1000);
-      firstWall = false;
+    if (lidarValue < stopDistance && lidarValue > 0)
+    {
+      robot->stopMotors();
+
+      if (!firstWall)
+      {
+        robot->sendMapData();
+      }
+
+      if (firstWall)
+      {
+        measureWallAngle();
+        delay(1000);
+        firstWall = false;
+      }
+
+      robot->turnByAngle(-95);
+      robot->countTurnAngle(-90);
+
+      communicateWithPhone();
+      robot->displayData();
+
+      delay(500);
+      rideAlongWall();
     }
-
-    timer = -1;
-    
-    turnByAngle(-95);
-    delay(1000);
-    rideAlongWall();
   }
   else
   {
-    timer = millis();
+    loop();
   }
-}
-
-void getToWall()
-{
-  robot->motorSpeed(0, 100);
-  robot->motorSpeed(1, 100);
-
-  timer = millis();
 }
 
 void setup()
 {
   robot = new Robot();
-
-  getToWall();
 }
 
 void loop()
 {
-  if (timer != -1 && millis() > timer + timeDelay)
+  communicateWithPhone();
+  robot->displayData(); //send data and read incoming data
+
+  if (mapping)
   {
+    robot->bothMotorSpeed(robotSpeed);
     amInWall();
+  }
+  else
+  {
+    robot->stopMotors();
   }
 }

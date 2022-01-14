@@ -1,16 +1,18 @@
 #pragma once
 
 #include <Arduino.h>
-#include <OneWire.h>
-#include <DallasTemperature.h>
-#include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Servo.h>
+
+#include <WiFi.h>
 #include <ESP32MotorControl.h>
 #include <ESP32Encoder.h>
+#include <Servo.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include <Adafruit_VL53L0X.h>
+#include <Display.h>
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+
 
 class Robot {
 
@@ -36,22 +38,43 @@ public:
     void stopMotor(int motor);
     void stopMotors();
 
+    void turnByAngle(int angle);
+
     int get_enc_value(int motor);
     void delete_enc_value(int motor);
 
     int get_lidar();
 
+    void readGyro();
+
+    void sendSensorData();
+
+    String getSensorData();
+    String readData();
+
+    void countTurnAngle(int angle);
+    void sendMapData();
+
+    void displayData();
 
     const int servoMin = 0;
     const int servoMax = 180;
     const int revolutionClicks = 4172;
 
+    sensors_event_t a, g, temp;
+
 private:
+
+    //const String ROBOT_COLOR = "#Green";
+    //const String ROBOT_COLOR = "#Pink";
+    const String ROBOT_COLOR = "#Blue";
+    //const String ROBOT_COLOR = "#Golden";
+
     const float batteryMax = 3150.0;
 
     const int temperatureSensorPin = 23;
     const int buzzerPin = 32;
-    const int batteryPin = 2;
+    const int batteryPin = 36;
     const int servoPin = 15;
 
 
@@ -61,7 +84,7 @@ private:
 
     #define OLED_RESET -1
     #define SCREEN_ADDRESS 0x3C
-    Adafruit_SSD1306 *display = new Adafruit_SSD1306(screenWidth, screenHeight, &Wire, OLED_RESET);
+    Display *screen = new Display();
 
     // Dallas Temperature sensor
     OneWire *oneWire = new OneWire(temperatureSensorPin);
@@ -84,7 +107,23 @@ private:
     //LiDAR
     Adafruit_VL53L0X *lidar = new Adafruit_VL53L0X();
 
+    Adafruit_MPU6050 mpu;
+
+    const char* ssid = "Matousek";
+    const char* password =  "Kokorin12";
+
+    const uint16_t port = 8090;
+    const char * host = "10.0.0.33";
+
+    WiFiClient client;
+
+    int angleTurned = 0;
+
     void soundBootUp();
     void displayBegin();
     void servoBegin();
+    void beginGyro();
+    void wifiBegin();
+    void soundConnected();
+    void soundDataSent();
 };
