@@ -77,7 +77,7 @@ private:
     QList<QList<QList<int> *>> *graphDataLists;
     QStringList graphNames = {"Teplota", "Stav akumulátoru", "Ujetá vzdálenost", "Průměrná rychlost"};
     QStringList graphValueNames = {"Teplota [°C]", "Nabití [%]", "Vzdálenost [cm]", "Rychlost [m/s]"};
-    QList<int> graphMax = {35, 100, 0, 20};
+    QList<int> graphMax = {35, 100, 0, 0};
 
     QList<QList<int> *> *temperature;
     QList<QList<int> *> *batteryStatus;
@@ -94,6 +94,7 @@ private:
 
     QLabel *cameraLabel;
     Joystick *joystick;
+    int lastJ = -1;
 
     QNetworkAccessManager qnam;
     QNetworkReply *reply;
@@ -140,5 +141,6 @@ private:
     void downloadFile();
     std::unique_ptr<QFile> openFileForWrite(const QString &fileName);
     void updateCameraLabel();
+    void enableJoystick(bool en);
 };
 #endif // MAINWINDOW_H

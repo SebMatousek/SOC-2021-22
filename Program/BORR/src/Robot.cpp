@@ -1,184 +1,96 @@
 #include "Robot.h"
 
-void Robot::debugOverWiFi(String data)
+Robot::Robot()
 {
-    client.print("@" + data);
+    Wire.begin();
+
+    motor_both_begin();
+    encoder_both_begin();
+
+    lidar_begin();
+    dallas_begin();
+
+    screen_begin();
+    buzzer_begin();
+
+    servo_begin();
 }
 
-/*void Robot::displayBegin()
+//Motors
+void Robot::motor_both_begin()
 {
-    screen->print("Bezdratove", 1, 2);
-    screen->print(" ovladany ", 3, 2);
-    screen->print("roj robotu", 5, 2);
+    pinMode(in1, OUTPUT);
+    pinMode(in2, OUTPUT);
+    pinMode(in3, OUTPUT);
+    pinMode(in4, OUTPUT);
+    MotorControl.attachMotors(in2, in1, in3, in4);
 }
 
-void Robot::updateDisplay(int phase)
+void Robot::set_motor_speed(int motor, int speed)
 {
-    if(!(lastPhase == phase))
+    if (speed > 0 && speed <= 100)
     {
-        delay(100);
-        screen->clear();
-
-        screen->print(decodeRobotName() + "       " + String(readBatteryStatus()) + "%", 1);
-        screen->print("   " + String(phase), 3, 3);
-
-        delay(100);
+        MotorControl.motorForward(motor, abs(speed));
     }
-
-    lastPhase = phase;
-}*/
-
-String Robot::decodeRobotName()
-{
-    if(ROBOT_COLOR == "#Green") return "Zeleny";
-    if(ROBOT_COLOR == "#Pink") return "Ruzovy";
-    if(ROBOT_COLOR == "#Blue") return "Modry ";
-    if(ROBOT_COLOR == "#Golden") return "Zlaty ";
-}
-
-String Robot::readData()
-{
-    if (client.available())
+    else if (speed < 0 && speed >= -100)
     {
-        //Serial.println(client.readString());
-        return client.readString();
+        MotorControl.motorReverse(motor, abs(speed));
     }
     else
     {
-        return "-";
+        MotorControl.motorStop(motor);
     }
 }
 
-void Robot::soundDataSent()
+int Robot::get_motor_speed(int motor)
 {
-    soundNote(NOTE_B, 5);
-    delay(250);
-    soundNote(NOTE_B, 4);
-    delay(250);
-    soundEnd();
-    delay(500);
+    return MotorControl.getMotorSpeed(motor);
 }
 
-void Robot::sendSensorData()
+void Robot::set_motor_both_speed(int speed)
 {
-    client.print(getSensorData());
-    Serial.println("sent data");
+    set_motor_speed(0, speed);
+    set_motor_speed(1, speed);
 }
 
-String Robot::getSensorData()
+void Robot::motor_stop(int motor)
 {
-    return String(int(readTemp() * 10)) + "%" + String(int(readBatteryStatus())) + "*";
-}
-
-void Robot::sendMapData()
-{
-    client.print("M%" + String(angleTurned) + "%" + String(int((get_enc_value(0) / float(revolutionClicks) * 3.14 * 3.5) * 100)) + "%" + String(0) + "*");
-    delete_enc_value(0);
-    delete_enc_value(1);
-}
-
-void Robot::countTurnAngle(int angle)
-{
-    angleTurned += angle;
-
-    if(angleTurned == 360 || angleTurned == -360)
-    { 
-        angleTurned = 0;
-    }
-    if(angleTurned == -270)
+    if (MotorControl.getMotorSpeed(motor) != 0)
     {
-        angleTurned = 90;
-    }
-    if(angleTurned == 270)
-    {
-        angleTurned = -90;
-    }
-}
-
-void Robot::soundConnected()
-{
-    soundNote(NOTE_E, 5);
-    delay(250);
-    soundNote(NOTE_E, 5);
-    delay(250);
-    soundEnd();
-    delay(500);
-}
-
-void Robot::wifiBegin()
-{
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED)
-    {
-        delay(500);
-        Serial.println("...");
-    }
-
-    Serial.print("WiFi connected with IP: ");
-    Serial.println(WiFi.localIP());
-
-    if (!client.connect(host, port))
-    {
-        Serial.println("Connection to host failed");
-
-        delay(1000);
-        return;
-    }
-
-    client.print(ROBOT_COLOR);
-
-    soundConnected();
-}
-
-void Robot::readGyro()
-{
-    mpu.getEvent(&a, &g, &temp);
-
-    Serial.print("Acceleration X: ");
-    Serial.print(a.acceleration.x);
-    Serial.print(", Y: ");
-    Serial.print(a.acceleration.y);
-    Serial.print(", Z: ");
-    Serial.print(a.acceleration.z);
-    Serial.println(" m/s^2");
-
-    Serial.print("Rotation X: ");
-    Serial.print(g.gyro.x);
-    Serial.print(", Y: ");
-    Serial.print(g.gyro.y);
-    Serial.print(", Z: ");
-    Serial.print(g.gyro.z);
-    Serial.println(" rad/s");
-
-    Serial.println("");
-}
-
-void Robot::beginGyro()
-{
-    if (!mpu.begin())
-    {
-        Serial.println("Failed to find MPU6050 chip");
-        while (1)
+        if (MotorControl.isMotorForward(motor))
         {
-            delay(10);
+            set_motor_speed(motor, -100);
         }
+        else
+        {
+            set_motor_speed(motor, 100);
+        }
+
+        delay(17);
+
+        MotorControl.motorStop(motor);
     }
+}
+
+void Robot::motor_both_stop()
+{
+    motor_stop(0);
+    motor_stop(1);
 }
 
 void Robot::turnByAngle(int angle)
 {
-    delete_enc_value(0);
-    delete_enc_value(1);
+    delete_both_enc_value();
 
     if (angle > 0)
     {
-        motorSpeed(0, 50);
-        motorSpeed(1, -50);
+        set_motor_speed(0, 50);
+        set_motor_speed(1, -50);
     }
-    else
+    else if (angle != 0)
     {
-        motorSpeed(0, -50);
-        motorSpeed(1, 50);
+        set_motor_speed(0, -50);
+        set_motor_speed(1, 50);
     }
 
     bool finished0 = false;
@@ -186,9 +98,6 @@ void Robot::turnByAngle(int angle)
 
     int rotations0 = revolutionClicks * abs(angle / 180.0);
     int rotations1 = revolutionClicks * abs(angle / 180.0);
-
-    //Serial.println(rotations0);
-    //Serial.println(rotations1);
 
     while (!finished0 || !finished1)
     {
@@ -202,148 +111,68 @@ void Robot::turnByAngle(int angle)
         }
     }
 
-    stopMotors();
-}
-
-int Robot::get_lidar()
-{
-    VL53L0X_RangingMeasurementData_t measure;
-
-    lidar->rangingTest(&measure, false);
-
-    if (measure.RangeStatus != 4)
-    {
-        return measure.RangeMilliMeter;
-    }
-    else
-        return -1;
-}
-
-void Robot::turn90(String direction)
-{
-    delete_enc_value(0);
-    delete_enc_value(1);
-
-    bool leftTurned = false;
-    bool rightTurned = false;
-
-    if (direction == "left")
-    {
-        motorSpeed(0, -100);
-        motorSpeed(1, 100);
-    }
-    else if (direction == "right")
-    {
-        motorSpeed(0, 100);
-        motorSpeed(1, -100);
-    }
-
-    while (!leftTurned || !rightTurned)
-    {
-
-        Serial.println("left... " + String(get_enc_value(0)));
-        Serial.println("right... " + String(get_enc_value(1)));
-
-        if (abs(get_enc_value(0)) > abs(revolutionClicks * 2 / 5))
-        {
-            stopMotor(0);
-            leftTurned = true;
-        }
-        if (abs(get_enc_value(1)) > abs(revolutionClicks * 2 / 5))
-        {
-            stopMotor(1);
-            rightTurned = true;
-        }
-    }
-}
-
-void Robot::stopMotors()
-{
-    stopMotor(0);
-    stopMotor(1);
-}
-
-void Robot::stopMotor(int motor)
-{
-    if (MotorControl.getMotorSpeed(motor) != 0)
-    {
-        if (MotorControl.isMotorForward(motor))
-        {
-            motorSpeed(motor, -100);
-        }
-        else
-        {
-            motorSpeed(motor, 100);
-        }
-
-        delay(15);
-
-        MotorControl.motorStop(motor);
-    }
-}
-
-void Robot::turnWheel(int motor, float rotations)
-{
-    delete_enc_value(motor);
-    bool turned = false;
-
-    if (rotations > 0)
-    {
-        motorSpeed(motor, 100);
-    }
-    else if (rotations < 0)
-    {
-        motorSpeed(motor, -100);
-    }
-
-    while (!turned)
-    {
-        if (abs(get_enc_value(motor)) > abs(revolutionClicks * rotations))
-        {
-            turned = true;
-            stopMotor(motor);
-        }
-    }
+    motor_both_stop();
 }
 
 void Robot::turnWheels(float rotations0, float rotations1)
 {
-    delete_enc_value(0);
-    delete_enc_value(1);
+    delete_both_enc_value();
 
     bool leftTurned = false;
     bool rightTurned = false;
 
     if (rotations0 > 0)
     {
-        motorSpeed(0, 100);
+        set_motor_speed(0, 100);
     }
     else if (rotations0 < 0)
     {
-        motorSpeed(0, -100);
+        set_motor_speed(0, -100);
     }
 
     if (rotations1 > 0)
     {
-        motorSpeed(1, 100);
+        set_motor_speed(1, 100);
     }
     else if (rotations1 < 0)
     {
-        motorSpeed(1, -100);
+        set_motor_speed(1, -100);
     }
 
     while (!leftTurned || !rightTurned)
     {
         if (abs(get_enc_value(0)) > abs(revolutionClicks * rotations0))
         {
-            stopMotor(0);
+            motor_stop(0);
             leftTurned = true;
         }
         if (abs(get_enc_value(1)) > abs(revolutionClicks * rotations1))
         {
-            stopMotor(1);
+            motor_stop(1);
             rightTurned = true;
         }
+    }
+}
+
+//Encoders
+void Robot::encoder_both_begin()
+{
+    ESP32Encoder::useInternalWeakPullResistors = UP;
+    encoder0->attachHalfQuad(34, 35);
+    encoder1->attachHalfQuad(4, 19);
+    encoder0->clearCount();
+    encoder1->clearCount();
+}
+
+int Robot::get_enc_value(int enc)
+{
+    if (enc == 0)
+    {
+        return encoder0->getCount();
+    }
+    else
+    {
+        return encoder1->getCount();
     }
 }
 
@@ -358,155 +187,145 @@ void Robot::delete_enc_value(int motor)
         encoder1->clearCount();
     }
 }
-
-int Robot::get_enc_value(int motor)
+void Robot::delete_both_enc_value()
 {
-    if (motor == 0)
-    {
-        return encoder0->getCount();
-    }
-    else
-    {
-        return encoder1->getCount();
-    }
+    delete_enc_value(0);
+    delete_enc_value(1);
 }
 
-int Robot::get_motor_speed(int motor)
+//Servo
+void Robot::servo_begin()
 {
-    return MotorControl.getMotorSpeed(motor);
+    servo.attach(servoPin, 7);
+    set_servo_position(90);
 }
 
-void Robot::bothMotorSpeed(int speed)
+void Robot::set_servo_position(int pos)
 {
-    if (speed > 0 && speed <= 100)
-    {
-        MotorControl.motorForward(0, speed);
-        MotorControl.motorForward(1, speed);
-    }
-    else if (speed < 0 && speed >= -100)
-    {
-        MotorControl.motorForward(0, speed);
-        MotorControl.motorForward(1, speed);
-    }
-    else if (speed == 0)
-    {
-        MotorControl.motorStop(0);
-        MotorControl.motorStop(1);
-    }
-    else
-    {
-        MotorControl.motorStop(0);
-        MotorControl.motorStop(1);
-        Serial.println("Not a valid motor speed!");
-    }
-}
-
-void Robot::motorSpeed(int motor, int speed)
-{
-    if (speed > 0 && speed <= 100)
-    {
-        MotorControl.motorForward(motor, speed);
-    }
-    else if (speed < 0 && speed >= -100)
-    {
-        MotorControl.motorReverse(motor, speed);
-    }
-    else if (speed == 0)
-    {
-        MotorControl.motorStop(motor);
-    }
-    else
-    {
-        MotorControl.motorStop(motor);
-        Serial.println("Not a valid motor speed!");
-    }
-}
-
-void Robot::servoBegin()
-{
-    servo.attach(servoPin);
-    servo.write(90);
-}
-
-int Robot::get_servoPos()
-{
-    return servoPos;
-}
-
-void Robot::set_servoPos(int pos)
-{
-    if (pos >= servoMin && pos <= servoMax)
+    if (pos >= 0 && pos <= 180)
     {
         servo.write(pos);
         servoPos = pos;
     }
+    else
+    {
+        Serial.println("wtf");
+    }
+
+    Serial.println(pos);
+}
+int Robot::get_servo_position()
+{
+    return servoPos;
 }
 
-float Robot::readTemp()
+//Lidar
+void Robot::lidar_begin()
+{
+    lidar->begin();
+}
+
+int Robot::get_lidar_distance()
+{
+    VL53L0X_RangingMeasurementData_t measure;
+
+    lidar->rangingTest(&measure, false);
+
+    if (measure.RangeStatus != 4)
+    {
+        return measure.RangeMilliMeter;
+    }
+    else
+    {
+        return -1;
+    }
+}
+
+//Screen
+void Robot::screen_begin()
+{
+    screen->print("Bezdratove", 1, 2);
+    screen->print(" ovladany ", 3, 2);
+    screen->print("roj robotu", 5, 2);
+}
+
+void Robot::screenClear()
+{
+    screen->display_clear();
+}
+
+String Robot::decodeRobotName()
+{
+    if(ROBOT_COLOR == "#Green") return "Zeleny";
+    if(ROBOT_COLOR == "#Pink") return "Ruzovy";
+    if(ROBOT_COLOR == "#Blue") return "Modry ";
+    if(ROBOT_COLOR == "#Golden") return "Zlaty ";
+}
+
+void Robot::screen_display_data(int stepper)
+{
+    if(stepper != lastStepper)
+    {
+        screen->display_clear();
+
+        screen->print(decodeRobotName() + "         " + String(get_aku_percentage()) + "%", 1, 1, true);
+        screen->print("   " + String(stepper), 3, 3, true);
+    }
+
+    lastStepper = stepper;
+}
+
+//Buzzer
+void Robot::buzzer_begin()
+{
+    ledcSetup(5, 5000, 8);
+    pinMode(buzzerPin, OUTPUT);
+
+    buzzer_sound_note(NOTE_C, 5);
+    delay(150);
+    buzzer_sound_note(NOTE_G, 5);
+    delay(500);
+    buzzer_stop();
+    delay(200);
+}
+
+void Robot::buzzer_sound_note(note_t note, uint8_t octave)
+{
+    ledcAttachPin(buzzerPin, 5);
+    ledcWriteNote(5, note, octave);
+}
+void Robot::buzzer_stop()
+{
+    ledcDetachPin(buzzerPin);
+}
+
+void Robot::buzzer_sound_WiFi_connected()
+{
+    buzzer_sound_note(NOTE_E, 5);
+    delay(250);
+    buzzer_sound_note(NOTE_E, 5);
+    delay(250);
+    buzzer_stop();
+    delay(500);
+}
+
+//Akumulator
+int Robot::get_aku_percentage()
+{
+    return (analogRead(batteryPin) / batteryMax) * 100.0;
+}
+
+//Dallas temperature sensor
+void Robot::dallas_begin()
+{
+    sensor->begin();
+    get_dallas_temperature();
+}
+
+int Robot::get_dallas_temperature()
 {
     sensor->requestTemperatures();
     float temperatureC = sensor->getTempCByIndex(0);
 
     return temperatureC;
-}
-
-float Robot::readBatteryStatus()
-{
-    return (analogRead(batteryPin) / batteryMax) * 100.0;
-}
-
-void Robot::soundEnd()
-{
-    ledcDetachPin(buzzerPin);
-}
-
-void Robot::soundNote(note_t note, uint8_t octave)
-{
-    ledcAttachPin(buzzerPin, 1);
-    ledcWriteNote(1, note, octave);
-}
-
-void Robot::soundBootUp()
-{
-    soundNote(NOTE_C, 5);
-    delay(150);
-    soundEnd();
-    soundNote(NOTE_G, 5);
-    delay(500);
-    soundEnd();
-    delay(200);
-}
-
-Robot::Robot()
-{
-    Wire.begin();
-    
-    //displayBegin();
-    soundBootUp();
-    //screen->clear();
-
-    Serial.begin(115200);
-
-    pinMode(buzzerPin, OUTPUT);
-
-    pinMode(in1, OUTPUT);
-    pinMode(in2, OUTPUT);
-    pinMode(in3, OUTPUT);
-    pinMode(in4, OUTPUT);
-    MotorControl.attachMotors(in2, in1, in3, in4);
-
-    sensor->begin();
-    readTemp();
-
-    ESP32Encoder::useInternalWeakPullResistors = UP;
-    encoder0->attachHalfQuad(34, 35);
-    encoder1->attachHalfQuad(4, 19);
-    encoder0->clearCount();
-    encoder1->clearCount();
-
-    lidar->begin();
-
-    wifiBegin();
-
-    servoBegin();
 }

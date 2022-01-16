@@ -1,29 +1,9 @@
 #include <Arduino.h>
+#include <WiFi.h>
+
 #include "Robot.h"
 
-//#define CAMERA
-
-Robot *robot;
-
-long long int dataTimer = 0;
-const int dataTimerDelay = 1000;
-
-const int stopDistance = 95;
-const int checkDelay = 50;
-const unsigned int motorSpeedCushion = 8;
-const unsigned int distanceCushion = 6;
-int lastDistance = stopDistance;
-
-int wallDistances[18];
-const int WALL_ANGLE_COUNT = 18;
-
-bool firstWall = true;
-
-bool mapping = false;
-
-int robotSpeed = 100;
-
-int phase = 0;
+#define CAMERA
 
 #ifdef CAMERA
 #include <Wire.h>
@@ -228,84 +208,283 @@ void setupCamera()
   server.begin();
   Serial.println(F("Server started"));
 }
-
 #endif
 
-void central(String data)
+TaskHandle_t robotTask;
+TaskHandle_t networkTask;
+
+Robot *robot;
+
+#ifndef CAMERA
+const char* ssid = "Matousek";
+const char* password =  "Kokorin12";
+#endif
+
+const uint16_t port = 8090;
+const char * host = "10.0.0.33";
+
+WiFiClient client;
+
+int motor_speed = 100;
+bool mapping = false;
+int stepper = 0;
+
+long long dataTimer = 0;
+int dataTimeDelay = 1000;
+long long speedTimer = 0;
+
+unsigned int stopDistance = 120;
+const unsigned int motorSpeedCushion = 15;
+const unsigned int distanceCushion = 6;
+int lastDistance = stopDistance / 2;
+int angleTurned = 0;
+
+long distanceTraveled = 0;
+
+bool joystickEnabled = false;
+bool wasMapping = false;
+bool firstEnable = true;
+
+void sendMapData()
 {
-  if (data.equals("-"))
-  {
-    return;
-  }
-  else if (data.equals("go"))
-  {
-    mapping = true;
-  }
-  else if (data.equals("stop"))
-  {
-    mapping = false;
-  }
+    int distance = int(robot->get_enc_value(0) / float(robot->revolutionClicks) * 3.14 * 3.5);
+    int speed = distance / (millis() - speedTimer) * 1000;
+    distanceTraveled += distance;
+    client.print("M%" + String(angleTurned) + "%" + String(distance) + "%" + String(distanceTraveled) + "%" + String(speed) + "*");
+    robot->delete_both_enc_value();
+
+    speedTimer = millis();
 }
 
-void readIncoming()
+void countTurnAngle(int angle)
 {
-  String data = robot->readData();
-  central(data);
+    angleTurned += angle;
+
+    if(angleTurned == 360 || angleTurned == -360)
+    { 
+        angleTurned = 0;
+    }
+    if(angleTurned == -270)
+    {
+        angleTurned = 90;
+    }
+    if(angleTurned == 270)
+    {
+        angleTurned = -90;
+    }
 }
 
-void sendSensorData()
+void send_data_sensors()
 {
-  if (millis() > dataTimer + dataTimerDelay)
+  if(millis() > dataTimer + dataTimeDelay)
   {
+    client.print(String(robot->get_dallas_temperature() * 10) + "%" + String(robot->get_aku_percentage()) + "%" + "0%0*");
     dataTimer = millis();
-    robot->sendSensorData();
   }
 }
 
-void communicateWithPhone()
+void recieve_data()
 {
-  readIncoming();
+  if(client.available())
+  {
+    String message = client.readString();
 
-  sendSensorData();
-  robot->sendMapData();
+    if(message == "map")
+    {
+      Serial.println("start mapping");
+      mapping = true;
+    }
+    else if(message == "pause")
+    {
+      Serial.println("pause mapping");
+      mapping = false;
+    }
+    else if(joystickEnabled)
+    {
+      int direction = message.toInt();
+
+      Serial.println(message);
+
+      switch(direction)
+      {
+        case 0:
+          robot->motor_both_stop();
+          break;
+        case 1:
+          robot->set_motor_both_speed(motor_speed);
+          break;
+        case 2:
+          robot->set_motor_speed(0, motor_speed);
+          robot->set_motor_speed(1, motor_speed / 1.5);
+          break;
+        case 3:
+          robot->set_motor_speed(0, motor_speed);
+          robot->set_motor_speed(1, -motor_speed);
+          break;
+        case 4:
+          robot->set_motor_speed(0, -motor_speed);
+          robot->set_motor_speed(1, -(motor_speed / 1.5));
+          break;
+        case 5:
+          robot->set_motor_both_speed(-motor_speed);
+          break;
+        case 6:
+          robot->set_motor_speed(0, -(motor_speed / 1.5));
+          robot->set_motor_speed(1, -motor_speed);
+          break;
+        case 7:
+          robot->set_motor_speed(0, motor_speed);
+          robot->set_motor_speed(1, -motor_speed);
+          break;
+        case 8:
+          robot->set_motor_speed(0, motor_speed / 1.5);
+          robot->set_motor_speed(1, motor_speed);
+          break;
+      }
+    }
+
+    if(message.indexOf("disableJoystick") >= 0)
+    {
+      Serial.println("disable j");
+      if(robot->ROBOT_COLOR == "#Golden")
+      {
+        joystickEnabled = false;
+        mapping = wasMapping;
+        firstEnable = true;
+      }
+    }
+    if(message.indexOf("enableJoystick") >= 0)
+    {
+      Serial.println("enable j");
+      if(robot->ROBOT_COLOR == "#Golden")
+      {
+        joystickEnabled = true;
+        stepper = 0;
+        wasMapping = mapping;
+        mapping = false;
+      }
+    }
+
+    client.print("@Got the message: " + message);
+  }
+}
+
+bool begin_WiFi()
+{
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("...");
+  }
+ 
+  Serial.print("WiFi connected with IP: ");
+  Serial.println(WiFi.localIP());
+
+  if (!client.connect(host, port)) 
+  {
+        Serial.println("Connection to host failed");
+        return false;
+  }
+
+  client.print(robot->ROBOT_COLOR);
+
+  return true;
+}
+
+void getToWall()
+{
+  Serial.println("get to wall");
+  speedTimer = millis();
+
+  robot->set_motor_both_speed(motor_speed);
+
+  int lidar_dist = robot->get_lidar_distance();
+
+  while(lidar_dist > stopDistance || lidar_dist < 10)
+  {
+    lidar_dist = robot->get_lidar_distance();
+
+    Serial.println(lidar_dist);
+
+    delay(20);
+  }
+
+  robot->motor_both_stop();
+  stepper = 1;
+}
+
+void alignWithWall()
+{
+  Serial.println("align with wall");
+  int wallDistances[18];
+
+  for (int i = 0; i < 180; i += 10)
+  {
+    robot->set_servo_position(i);
+    delay(150);
+    wallDistances[i / 10] = robot->get_lidar_distance();
+    delay(10);
+  }
+
+  int smallestDistance = 10000;
+  int bestAngle = 0;
+
+  for (int i = 0; i <= 18; i++)
+  {
+    //Serial.println(wallDistances[i]);
+    if (smallestDistance > wallDistances[i] && wallDistances[i] > 0)
+    {
+      smallestDistance = wallDistances[i];
+      bestAngle = i + 1 * 10;
+    }
+  }
+
+  //Serial.println(bestAngle);
+
+  robot->turnByAngle(90 - bestAngle -95);
+
+  stepper = 2;
 }
 
 void checkSide()
 {
-  robot->set_servoPos(robot->servoMin);
+  Serial.println("check side");
+  robot->set_servo_position(0);
 
-  delay(150);
+  delay(200);
 
-  int lidarValue = robot->get_lidar();
+  int lidarValue = robot->get_lidar_distance();
 
   if (lidarValue > lastDistance + stopDistance)
   {
-    robot->turnWheels(1.25, 1.25);
+    robot->turnWheels(1.05, 1.05);
 
-    robot->turnByAngle(90);
-    robot->countTurnAngle(90);
+    sendMapData();
 
-    delay(1000);
-    
-    while(!mapping){}
+    robot->turnByAngle(100);
+    countTurnAngle(90);
 
-    robot->motorSpeed(0, robotSpeed);
-    robot->motorSpeed(1, robotSpeed);
+    delay(165);
+
+    robot->set_motor_both_speed(motor_speed);
+    lastDistance = stopDistance / 2;
+
+    delay(75);
   }
   else if (lidarValue > stopDistance + distanceCushion)
   {
-    if (robot->get_motor_speed(1) > 50 + motorSpeedCushion)
+    if (robot->get_motor_speed(1) > 55 + motorSpeedCushion)
     {
-      robot->motorSpeed(1, robot->get_motor_speed(1) - motorSpeedCushion);
+      robot->set_motor_speed(1, robot->get_motor_speed(1) - motorSpeedCushion);
     }
 
     //Serial.println("to far");
   }
   else if (lidarValue < stopDistance - distanceCushion)
   {
-    if (robot->get_motor_speed(0) > 50 + motorSpeedCushion)
+    if (robot->get_motor_speed(0) > 55 + motorSpeedCushion)
     {
-      robot->motorSpeed(0, robot->get_motor_speed(0) - motorSpeedCushion);
+      robot->set_motor_speed(0, robot->get_motor_speed(0) - motorSpeedCushion);
     }
 
     //Serial.println("to close");
@@ -313,20 +492,20 @@ void checkSide()
   else
   {
     //Serial.println("sweetspot");
-    robot->motorSpeed(0, robotSpeed);
-    robot->motorSpeed(1, robotSpeed);
+    robot->set_motor_both_speed(motor_speed);
   }
 
   lastDistance = lidarValue;
 }
 
-bool checkForward()
+bool checkFront()
 {
-  robot->set_servoPos(95);
+  Serial.println("check front");
+  robot->set_servo_position(95);
 
   delay(140);
 
-  int lidarValue = robot->get_lidar();
+  int lidarValue = robot->get_lidar_distance();
 
   if (lidarValue < stopDistance && lidarValue > 0)
   {
@@ -336,120 +515,69 @@ bool checkForward()
   return true;
 }
 
-void amInWall();
-
 void rideAlongWall()
 {
-  robot->bothMotorSpeed(robotSpeed);
-
-  while (checkForward() && mapping)
+  Serial.println("ride along wall");
+  robot->set_motor_both_speed(motor_speed);
+  
+  while(checkFront() && !joystickEnabled)
   {
-    delay(checkDelay);
-    
-    if(!mapping)
-    {
-      int m0 = robot->get_motor_speed(0);
-      int m1 = robot->get_motor_speed(1);
-
-      robot->stopMotors();
-      while(!mapping){}
-
-      robot->motorSpeed(0, m0);
-      robot->motorSpeed(1, m1);
-    }
-
     checkSide();
-
-    delay(checkDelay);
   }
-
-  robot->stopMotors();
-
-  while(!mapping){}
-
-  amInWall();
-}
-
-void measureWallAngle()
-{
-  for (int i = 0; i < WALL_ANGLE_COUNT; i++)
+  if(!joystickEnabled)
   {
-    wallDistances[i] = -1;
+    robot->motor_both_stop();
+
+    sendMapData();
+
+    robot->turnByAngle(-90);
+    countTurnAngle(-90);
+
+    robot->set_motor_both_speed(motor_speed);
   }
-
-  for (int i = 0; i < 180; i += 10)
+  else
   {
-    robot->set_servoPos(i);
-    delay(150);
-    wallDistances[i / 10] = robot->get_lidar();
-    delay(10);
-  }
-
-  int smallestDistance = 8200;
-  int bestAngle = 0;
-
-  for (int i = 0; i < WALL_ANGLE_COUNT; i++)
-  {
-    Serial.println(wallDistances[i]);
-    if (smallestDistance > wallDistances[i] && wallDistances[i] > 0)
-    {
-      smallestDistance = wallDistances[i];
-      bestAngle = i * 10;
-    }
-  }
-
-  Serial.println(bestAngle);
-  //robot->debugOverWiFi(String("best angle " + bestAngle));
-
-  if (bestAngle != 90)
-  {
-    robot->turnByAngle(90 - bestAngle);
+    robot->motor_both_stop();
   }
 }
-
-void amInWall()
-{
-  int lidarValue = robot->get_lidar();
-  //Serial.println(lidarValue); 
-
-  if (lidarValue < stopDistance && lidarValue > 0)
-  {
-    robot->stopMotors();
-
-    if (firstWall)
-    {
-      measureWallAngle();
-      delay(1000);
-      firstWall = false;
-    }
-
-    robot->turnByAngle(-95);
-    robot->countTurnAngle(-90);
-
-    delay(500);
-
-    while(!mapping){}
-
-    rideAlongWall();
-  }
-}
-
-TaskHandle_t robotTask;
-TaskHandle_t networkTask;
 
 //Task1code: blinks an LED every 1000 ms
 void runRobot(void *pvParameters)
 {
   Serial.print("robot control task running on core ");
   Serial.println(xPortGetCoreID());
-  delay(500);
+
+  robot->screenClear();
+  delay(300);
 
   for (;;)
   {
-    while(!mapping){delay(20);}
+    robot->screen_display_data(stepper);
 
-    robot->bothMotorSpeed(robotSpeed);
-    amInWall();
+    if(mapping)
+    {
+      switch(stepper)
+      {
+        case 0:
+          getToWall();
+          break;
+        case 1:
+          alignWithWall();
+          break;
+        case 2:
+          rideAlongWall();
+          break;
+      }
+    }
+
+    if(joystickEnabled && firstEnable)
+    {
+      client.print("!joystickEnabled*");
+      Serial.println("j enabled!!");
+      firstEnable = false;
+    }
+
+    delay(10);
   }
 }
 
@@ -460,19 +588,28 @@ void runNetwork(void *pvParameters)
   Serial.print("network task running on core ");
   Serial.println(xPortGetCoreID());
 
-#ifdef CAMERA
-  setupCamera();
-#endif
+  if(!begin_WiFi())
+  {
+    Serial.println("WiFi didn't connect!");
+    for(;;){delay(10);}
+  }
+
+  robot->buzzer_sound_WiFi_connected();
+  robot->screen_display_data(stepper);
+
+  #ifdef CAMERA
+    setupCamera();
+  #endif
 
   for (;;)
   {
-    communicateWithPhone();
+    send_data_sensors();
+
+    recieve_data();
 
     #ifdef CAMERA
         server.handleClient();
     #endif
-
-    delay(20);
   }
 }
 

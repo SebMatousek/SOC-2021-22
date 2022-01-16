@@ -26,11 +26,13 @@ Display::Display()
     delay(1000);
 }
 
-void Display::clear(int lane)
+void Display::display_clear(int lane)
 {
     if(lane < 0)
     {
         display.clearDisplay();
+        display.display();
+        
         atLane = 1;
     }
     else

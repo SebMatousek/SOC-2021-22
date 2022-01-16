@@ -169,13 +169,23 @@ MainWindow::MainWindow(QWidget *parent)
     //Map
     maps = new QList<QChartView *>();
     mapData = new QList<QList<QList<int> *> *>();
-    QList<QList<int> *> *startMapData = new QList<QList<int> *>();
+    QList<QList<int> *> *startMapData1 = new QList<QList<int> *>();
+    QList<QList<int> *> *startMapData2 = new QList<QList<int> *>();
+    QList<QList<int> *> *startMapData3 = new QList<QList<int> *>();
+    QList<QList<int> *> *startMapData4 = new QList<QList<int> *>();
 
-    startMapData->append(new QList<int>({0, 0}));
+    startMapData1->append(new QList<int>({0, 0}));
+    startMapData2->append(new QList<int>({0, 0}));
+    startMapData3->append(new QList<int>({0, 0}));
+    startMapData4->append(new QList<int>({0, 0}));
+
+    mapData->append(startMapData1);
+    mapData->append(startMapData2);
+    mapData->append(startMapData3);
+    mapData->append(startMapData4);
 
     for(int i = 0; i < ROBOT_COUNT; i++)
     {
-        mapData->append(startMapData);
         maps->append(new QChartView(newMapChart(mapData->at(i), i), this));
     }
 
@@ -264,6 +274,9 @@ MainWindow::MainWindow(QWidget *parent)
         pLayout->itemAt(i)->widget()->setStyleSheet("border: 5px solid red;");
     }*/
 
+
+
+
     pWgt->setLayout(pLayout);
 
     //This sentence setwidget must be put in pwgt after all the contents are prepared, otherwise there is a problem with the display
@@ -271,11 +284,75 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(scrollArea);
 
     toMainButtonPage();
+
 }
 
 void MainWindow::on_joystick_changed(float x, float y)
 {
-    qDebug()<< x << y;
+    if(joystick->isEnabled())
+    {
+        //qDebug()<< x << y;
+        int j = -1;
+
+        if(x == 0 && y == 0)
+        {
+            j = 0;
+            //qDebug()<<"0";
+        }
+        else if(x > -0.07  && x < 0.07)
+        {
+            if(y > 0.15)
+            {
+                j = 5;
+                //qDebug()<<"5";
+            }
+            if(y < -0.15)
+            {
+                j = 1;
+                //qDebug()<<"1";
+            }
+        }
+        else if(y > -0.07  && y < 0.07)
+        {
+            if(x > 0.15)
+            {
+                j = 3;
+                //qDebug()<<"3";
+            }
+            if(x < -0.15)
+            {
+                j = 7;
+                //qDebug()<<"7";
+            }
+        }
+        else if(x > 0.15 && y < -0.175)
+        {
+            j = 2;
+            //qDebug()<<"2";
+        }
+        else if(x < -0.15 && y < -0.175)
+        {
+            j = 8;
+            //qDebug()<<"8";
+        }
+        else if(x > 0.15 && y > 0.175)
+        {
+            j = 4;
+            //qDebug()<<"4";
+        }
+        else if(x < -0.15 && y > 0.175)
+        {
+            j = 6;
+            //qDebug()<<"6";
+        }
+
+        if(lastJ != j && j != -1)
+        {
+            tcpSockets->value("Golden")->write(QByteArray::number(j));
+            lastJ = j;
+            qDebug()<<j;
+        }
+    }
 }
 
 void MainWindow::downloadFile()
@@ -355,7 +432,7 @@ void MainWindow::mapButtonClicked()
 
         for(int i = 0; i < tcpSockets->size(); i++)
         {
-            tcpSockets->value(keys.at(i))->write("go");
+            tcpSockets->value(keys.at(i))->write("map");
         }
     }
     else
@@ -366,7 +443,7 @@ void MainWindow::mapButtonClicked()
 
         for(int i = 0; i < tcpSockets->size(); i++)
         {
-            tcpSockets->value(keys.at(i))->write("stop");
+            tcpSockets->value(keys.at(i))->write("pause");
         }
     }
 }
@@ -605,15 +682,24 @@ void MainWindow::readMessage(QString data, QString *name)
                 qDebug()<<"rotation unrecognized!";
             }
 
-            int mapIndex = robotNames.indexOf(*name);
+            x = mapData->at(senderIndex)->at(mapData->at(senderIndex)->length() - 1)->at(0) + x;
+            y = mapData->at(senderIndex)->at(mapData->at(senderIndex)->length() - 1)->at(1) + y;
 
-            x = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(0) + x;
-            y = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(1) + y;
+            mapData->at(senderIndex)->append(new QList<int>({x, y}));
 
-            mapData->at(mapIndex)->append(new QList<int>({x, y}));
+            refreshMaps(senderIndex);
+            qDebug()<<QString::number(senderIndex);
 
-            refreshMaps(mapIndex);
-            qDebug()<<QString::number(mapIndex);
+            int dist = values.at(2).toInt();
+            int spd = values.at(3).toInt() / 100;
+
+            sensorDataTime->at(senderIndex)->append(startTime.secsTo(QDateTime::currentDateTime().toLocalTime().time()));
+
+            distance->at(senderIndex)->append(dist);
+            speed->at(senderIndex)->append(spd);
+
+            if(graphs->at(0)->isVisible()) refreshGraphs();
+
 
         }
         else if(data.contains("%"))
@@ -648,8 +734,13 @@ void MainWindow::readMessage(QString data, QString *name)
 
             if(graphs->at(0)->isVisible()) refreshGraphs();
         }
+        else if(data == "!joystickEnabled")
+        {
+            joystick->setEnabled(true);
+        }
     }
 }
+
 
 void MainWindow::onReadyRead()
 {
@@ -953,12 +1044,37 @@ void MainWindow::toCameraPage()
     QScroller::ungrabGesture(scrollArea);
 }
 
+void MainWindow::enableJoystick(bool en)
+{
+    if(!en)
+    {
+        joystick->setEnabled(false);
+
+        qDebug()<<tcpSockets->value("Golden");
+
+        if(tcpSockets->value("Golden") != NULL)
+        {
+            tcpSockets->value("Golden")->write("disableJoystick");
+        }
+    }
+    else
+    {
+        qDebug()<<tcpSockets->value("Golden");
+
+        if(tcpSockets->value("Golden") != NULL)
+        {
+            tcpSockets->value("Golden")->write("enableJoystick");
+        }
+    }
+}
+
 void MainWindow::showCamera(bool show)
 {
     if(show)
     {
         cameraLabel->show();
         joystick->show();
+        enableJoystick(true);
 
         for(QWidget *w : *cameraSpacers)
         {
@@ -969,6 +1085,7 @@ void MainWindow::showCamera(bool show)
     {
         cameraLabel->hide();
         joystick->hide();
+        enableJoystick(false);
 
         for(QWidget *w : *cameraSpacers)
         {
