@@ -14,12 +14,12 @@ MainWindow::MainWindow(QWidget *parent)
     this->resize(screenSize.width(), screenSize.height());
 
     scrollArea = new QScrollArea(this);
-    QScroller::grabGesture(scrollArea, QScroller::TouchGesture);
 
-    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    scrollArea->horizontalScrollBar()->setDisabled(true);
+    scrollArea->horizontalScrollBar()->setEnabled(false);
+
 
     QWidget * pWgt = new QWidget;
     pWgt->resize(screenSize.width(), screenSize.height());
@@ -27,12 +27,18 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *pLayout = new QVBoxLayout();
     pLayout->setSizeConstraint(QLayout::SetMinimumSize);
 
-    QWidget *spacer = new QWidget();
-    spacer->setFixedSize(QSize(50, 150));
-
     pLayout->setContentsMargins(0, 0, 0, 0);
 
     //Title image
+
+    mainSpacers = new QList<QWidget *>();
+
+    QWidget *w = new QWidget();
+    w->setFixedSize(50, 100);
+
+    mainSpacers->append(w);
+    pLayout->addWidget(mainSpacers->at(0));
+
     titleImage = new QLabel();
 
     int titleImageW = ui->centralwidget->width() * 0.95;
@@ -41,10 +47,12 @@ MainWindow::MainWindow(QWidget *parent)
     titleImage->setGeometry(ui->centralwidget->width() / 2 - titleImageW / 2, ui->centralwidget->height() * 0.035,titleImageW, titleImageH);
     titleImage->setPixmap(QPixmap(":/img/TitleImage.png").scaledToWidth(titleImageW, Qt::SmoothTransformation));
 
-    pLayout->addWidget(spacer);
     pLayout->addWidget(titleImage);
     pLayout->setAlignment(titleImage, Qt::AlignCenter);
     titleImage->show();
+
+    mainSpacers->append(w);
+    pLayout->addWidget(mainSpacers->at(1));
 
     //Main buttons
     int mainButtonLength = mainButtonNames.length();
@@ -61,6 +69,11 @@ MainWindow::MainWindow(QWidget *parent)
         pLayout->setAlignment(button, Qt::AlignCenter);
         button->show();
     }
+
+    w = new QWidget();
+    w->setFixedSize(50, 200);
+    mainSpacers->append(w);
+    pLayout->addWidget(mainSpacers->at(2));
 
     //Graphs
     temperature = new QList<QList<int> *>();
@@ -179,12 +192,19 @@ MainWindow::MainWindow(QWidget *parent)
     mapButton->setMaximumWidth(mapBWidth);
     mapButton->setPixmap(QPixmap(":/img/BeginMapping.png").scaledToWidth(mapBWidth, Qt::SmoothTransformation));
 
-    spacer->setFixedSize(QSize(50, 50));
+    mapSpacers = new QList<QWidget *>();
 
+    w = new QWidget();
+    w->setFixedSize(50, 75);
+
+    mapSpacers->append(w);
+    mapSpacers->append(w);
+
+    pLayout->addWidget(mapSpacers->at(0));
     pLayout->addWidget(mapButton);
     pLayout->setAlignment(mapButton, Qt::AlignCenter);
 
-    pLayout->addWidget(spacer);
+    pLayout->addWidget(mapSpacers->at(1));
 
 
     mapButton->hide();
@@ -197,7 +217,9 @@ MainWindow::MainWindow(QWidget *parent)
 
         pLayout->addWidget(maps->at(i));
         pLayout->setAlignment(maps->at(i), Qt::AlignCenter);
-        pLayout->addWidget(spacer);
+
+        mapSpacers->append(w);
+        pLayout->addWidget(mapSpacers->at(i+2));
 
         maps->at(i)->hide();
     }
@@ -205,18 +227,42 @@ MainWindow::MainWindow(QWidget *parent)
     //Camera
     cameraLabel = new QLabel();
 
-    int camW = ui->centralwidget->width() * 0.95;
-    int camH = ui->centralwidget->height() * 0.5;
-
-    cameraLabel->setGeometry(ui->centralwidget->width() / 2 - camW / 2, ui->centralwidget->height() * 0.02, camW, camH);
-
-    //cameraLabel->setStyleSheet("background-color: red");
+    cameraLabel->setFixedSize(graphWidth, graphHeight);
+    cameraLabel->setPixmap(QPixmap(":/img/loadingImage").scaledToWidth(cameraLabel->width(), Qt::SmoothTransformation));
 
     pLayout->addWidget(cameraLabel);
     pLayout->setAlignment(cameraLabel, Qt::AlignCenter);
     cameraLabel->hide();
 
-    imgData = new QByteArray();
+    joystick = new Joystick(this, screenSize.width() * 0.95, screenSize.width() * 0.95);
+    pLayout->addWidget(joystick);
+    pLayout->setAlignment(joystick, Qt::AlignCenter);
+    joystick->hide();
+    joystick->setX(0.5);
+    joystick->setY(0.5);
+
+    connect(joystick, &Joystick::xChanged, this, [this](float x){
+        on_joystick_changed(x, joystick->y());
+    });
+
+
+    connect(joystick, &Joystick::yChanged, this, [this](float y){
+        on_joystick_changed(joystick->x(), y);
+    });
+
+    cameraSpacers = new QList<QWidget *>();
+
+    w = new QWidget();
+    w->setFixedSize(50, 200);
+
+    cameraSpacers->append(w);
+    pLayout->addWidget(cameraSpacers->at(0));
+
+    /*
+    for(int i = 0; i < pLayout->count(); i++)
+    {
+        pLayout->itemAt(i)->widget()->setStyleSheet("border: 5px solid red;");
+    }*/
 
     pWgt->setLayout(pLayout);
 
@@ -227,10 +273,74 @@ MainWindow::MainWindow(QWidget *parent)
     toMainButtonPage();
 }
 
-void MainWindow::loadImage()
+void MainWindow::on_joystick_changed(float x, float y)
 {
-    qDebug()<<"pixmap loaded";
-    //cameraLabel->setPixmap(QPixmap::fromImage(cameraDownloader.).scaledToWidth(cameraLabel->width(), Qt::SmoothTransformation));
+    qDebug()<< x << y;
+}
+
+void MainWindow::downloadFile()
+{
+    //qDebug()<<"Trying to download";
+    file = openFileForWrite(QDir::currentPath() + "/ArduCamImage.jpg");
+
+    reply = qnam.get(QNetworkRequest(QUrl::fromUserInput("10.0.0.32/capture")));
+    connect(reply, &QNetworkReply::finished, this, &MainWindow::httpFinished);
+    connect(reply, &QIODevice::readyRead, this, &MainWindow::httpReadyRead);
+}
+
+std::unique_ptr<QFile> MainWindow::openFileForWrite(const QString &fileName)
+{
+    std::unique_ptr<QFile> file(new QFile(fileName));
+    if (!file->open(QIODevice::WriteOnly)) {
+        QMessageBox::information(this, tr("Error"),
+                                 tr("Unable to save the file %1: %2.")
+                                 .arg(QDir::toNativeSeparators(fileName),
+                                      file->errorString()));
+        return nullptr;
+    }
+    return file;
+}
+
+void MainWindow::httpFinished()
+{
+    QFileInfo fi;
+    if (file) {
+        fi.setFile(file->fileName());
+        file->close();
+        file.reset();
+    }
+
+    reply->deleteLater();
+    reply = nullptr;
+
+    updateCameraLabel();
+}
+
+void MainWindow::httpReadyRead()
+{
+    if (file)
+        file->write(reply->readAll());
+}
+
+void MainWindow::updateCameraLabel()
+{
+    //qDebug()<<"pixmap loaded";
+
+    if(cameraLabel->isVisible())
+    {
+        QPixmap pix = QPixmap(QDir::currentPath() + "/ArduCamImage.jpg");
+        if(!pix.isNull())
+        {
+            cameraLabel->setPixmap(pix.scaledToWidth(cameraLabel->width(), Qt::SmoothTransformation));
+        }
+        else
+        {
+            cameraLabel->setPixmap(QPixmap(":/img/noImage").scaledToWidth(cameraLabel->width(), Qt::SmoothTransformation));
+        }
+
+        cameraLabel->repaint();
+        downloadFile();
+    }
 }
 
 void MainWindow::mapButtonClicked()
@@ -396,155 +506,149 @@ void MainWindow::incomingConnection()
 
 void MainWindow::readMessage(QString data, QString *name)
 {
-    //qDebug()<<QString(tcpSockets->key(sender)) + " is sending the message: " + data;
-    printDebug(*name + " wrote: " + data);
-
-    if(data.contains("#") && data.length() < 20)
+    if(data != "")
     {
-        qDebug()<<"name change";
-
-        data = data.remove(0, 1);
-
-        tcpSockets->remove(data);
-
-        qDebug()<<"Before name change";
-        qDebug()<<tcpSockets->values();
-        qDebug()<<tcpSockets->keys();
-
-        QMap<QString, QTcpSocket *> *swapper = new QMap<QString, QTcpSocket *>();
-
-        QList<QString> keys = tcpSockets->keys();
-
-
-        for(int i = 0; i < keys.length(); i++)
+        printDebug(*name + " wrote: " + data);
+        if(data.contains("@"))
         {
-            QString compare = QString(keys.at(i));
+            //comment message
+        }
+        else if(data.contains("#"))
+        {
+            qDebug()<<"name change";
 
-            if(compare != name)
+            data = data.remove(0, 1);
+
+            tcpSockets->remove(data);
+
+            qDebug()<<"Before name change";
+            qDebug()<<tcpSockets->values();
+            qDebug()<<tcpSockets->keys();
+
+            QMap<QString, QTcpSocket *> *swapper = new QMap<QString, QTcpSocket *>();
+
+            QList<QString> keys = tcpSockets->keys();
+
+
+            for(int i = 0; i < keys.length(); i++)
             {
-                swapper->insert(compare, tcpSockets->value(compare));
+                QString compare = QString(keys.at(i));
+
+                if(compare != name)
+                {
+                    swapper->insert(compare, tcpSockets->value(compare));
+                }
+                else
+                {
+                    swapper->insert(data, tcpSockets->value(compare));
+                }
+
+                qDebug()<<compare;
+                qDebug()<<name;
             }
-            else
+
+            tcpSockets->swap(*swapper);
+
+            qDebug()<<"After name change";
+            qDebug()<<tcpSockets->values();
+            qDebug()<<tcpSockets->keys();
+
+            if(data == "Golden")
             {
-                swapper->insert(data, tcpSockets->value(compare));
+                tcpSockets->value("Golden")->write("getPic");
+            }
+        }
+        else if(data.contains("M"))
+        {
+            qDebug()<<"map";
+
+            int senderIndex = robotNames.indexOf(*name);
+
+            if(senderIndex == -1)
+            {
+                qDebug()<<"unknown sender!!!";
+                return;
             }
 
-            qDebug()<<compare;
-            qDebug()<<name;
+            data.remove(0, 2);
+
+            QStringList values = data.split("%");
+
+            qDebug()<<values;
+
+            int y = 0;
+            int x = 0;
+
+            switch(values.at(0).toInt())
+            {
+            case 0://rotation 0 degrees
+                y = values.at(1).toInt();
+                break;
+
+            case 90://rotated right
+                x = values.at(1).toInt();
+                break;
+
+            case -90://rotated left
+                x = -(values.at(1).toInt());
+                break;
+
+            case 180://rotated left
+                y = -(values.at(1).toInt());
+                break;
+
+            case -180://rotated left
+                y = -(values.at(1).toInt());
+                break;
+
+            default:
+                qDebug()<<"rotation unrecognized!";
+            }
+
+            int mapIndex = robotNames.indexOf(*name);
+
+            x = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(0) + x;
+            y = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(1) + y;
+
+            mapData->at(mapIndex)->append(new QList<int>({x, y}));
+
+            refreshMaps(mapIndex);
+            qDebug()<<QString::number(mapIndex);
+
         }
-
-        tcpSockets->swap(*swapper);
-
-        qDebug()<<"After name change";
-        qDebug()<<tcpSockets->values();
-        qDebug()<<tcpSockets->keys();
-
-        if(data == "Golden")
+        else if(data.contains("%"))
         {
-            tcpSockets->value("Golden")->write("getPic");
+            qDebug()<<"sensor data";
+
+            int senderIndex = robotNames.indexOf(*name);
+
+            if(senderIndex == -1)
+            {
+                qDebug()<<"unknown sender!!!";
+                return;
+            }
+
+            //qDebug()<<data;
+            //qDebug()<<"here ";
+
+            QStringList values = data.split("%");
+            qDebug()<<"haha" << values;
+
+            int temp = values.at(0).toInt();
+            int bat = values.at(1).toInt();
+
+
+            sensorDataTime->at(senderIndex)->append(startTime.secsTo(QDateTime::currentDateTime().toLocalTime().time()));
+
+            //qDebug()<<startTime.toString();
+            //qDebug()<<QString::number(startTime.secsTo(QDateTime::currentDateTime().toLocalTime().time()));
+
+            temperature->at(senderIndex)->append(temp);
+            batteryStatus->at(senderIndex)->append(bat);
+
+            if(graphs->at(0)->isVisible()) refreshGraphs();
         }
     }
-    else if(data.contains("M") && data.length() < 50)
-    {
-        qDebug()<<"map";
-
-        int senderIndex = robotNames.indexOf(*name);
-
-        if(senderIndex == -1)
-        {
-            qDebug()<<"unknown sender!!!";
-            return;
-        }
-
-        data.remove(0, 2);
-
-        QStringList values = data.split("%");
-
-        qDebug()<<values;
-
-        int y = 0;
-        int x = 0;
-
-        switch(values.at(0).toInt())
-        {
-        case 0://rotation 0 degrees
-            y = values.at(1).toInt();
-            break;
-
-        case 90://rotated right
-            x = values.at(1).toInt();
-            break;
-
-        case -90://rotated left
-            x = -(values.at(1).toInt());
-            break;
-
-        case 180://rotated left
-            y = -(values.at(1).toInt());
-            break;
-
-        case -180://rotated left
-            y = -(values.at(1).toInt());
-            break;
-
-        default:
-            qDebug()<<"rotation unrecognized!";
-        }
-
-        int mapIndex = robotNames.indexOf(*name);
-
-        x = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(0) + x;
-        y = mapData->at(mapIndex)->at(mapData->at(mapIndex)->length() - 1)->at(1) + y;
-
-        mapData->at(mapIndex)->append(new QList<int>({x, y}));
-
-        refreshMaps(mapIndex);
-        qDebug()<<QString::number(mapIndex);
-
-    }
-    else if(data.contains("%") && data.length() < 50)
-    {
-        qDebug()<<"sensor data";
-
-        int senderIndex = robotNames.indexOf(*name);
-
-        if(senderIndex == -1)
-        {
-            qDebug()<<"unknown sender!!!";
-            return;
-        }
-
-        //qDebug()<<data;
-        //qDebug()<<"here ";
-
-        QStringList values = data.split("%");
-        qDebug()<<"haha" << values;
-
-        int temp = values.at(0).toInt();
-        int bat = values.at(1).toInt();
-
-
-        sensorDataTime->at(senderIndex)->append(startTime.secsTo(QDateTime::currentDateTime().toLocalTime().time()));
-
-        //qDebug()<<startTime.toString();
-        //qDebug()<<QString::number(startTime.secsTo(QDateTime::currentDateTime().toLocalTime().time()));
-
-        temperature->at(senderIndex)->append(temp);
-        batteryStatus->at(senderIndex)->append(bat);
-
-        if(graphs->at(0)->isVisible()) refreshGraphs();
-    }/*
-    if(data == "$endOfImage$")
-    {
-        qDebug()<<"end of image";
-        convertToImage();
-    }
-    else if(data != "")
-    {
-        qDebug()<<"imageData";
-        imgData->append(data.toUtf8());
-        //qDebug()<<data;
-    }*/
 }
 
 void MainWindow::onReadyRead()
@@ -768,6 +872,8 @@ void MainWindow::toMainButtonPage()
     showMaps(false);
 
     scrollToBeginning();
+
+    QScroller::ungrabGesture(scrollArea);
 }
 
 void MainWindow::toGraphPage()
@@ -787,6 +893,8 @@ void MainWindow::toGraphPage()
     showMaps(false);
 
     scrollToBeginning();
+
+    QScroller::grabGesture(scrollArea, QScroller::LeftMouseButtonGesture);
 }
 
 void MainWindow::toDebugPage()
@@ -802,6 +910,8 @@ void MainWindow::toDebugPage()
     showDebug(true);
 
     scrollToBeginning();
+
+    QScroller::ungrabGesture(scrollArea);
 }
 
 void MainWindow::toMapPage()
@@ -819,6 +929,8 @@ void MainWindow::toMapPage()
     showMaps(true);
 
     scrollToBeginning();
+
+    QScroller::grabGesture(scrollArea, QScroller::LeftMouseButtonGesture);
 }
 
 void MainWindow::toCameraPage()
@@ -835,6 +947,10 @@ void MainWindow::toCameraPage()
     showMaps(false);
 
     scrollToBeginning();
+
+    downloadFile();
+
+    QScroller::ungrabGesture(scrollArea);
 }
 
 void MainWindow::showCamera(bool show)
@@ -842,10 +958,22 @@ void MainWindow::showCamera(bool show)
     if(show)
     {
         cameraLabel->show();
+        joystick->show();
+
+        for(QWidget *w : *cameraSpacers)
+        {
+            w->show();
+        }
     }
     else
     {
         cameraLabel->hide();
+        joystick->hide();
+
+        for(QWidget *w : *cameraSpacers)
+        {
+            w->hide();
+        }
     }
 }
 
@@ -858,6 +986,11 @@ void MainWindow::showMainButtons(bool show)
             mainButtonList->at(i)->show();
         }
         titleImage->show();
+
+        for(QWidget *w : *mainSpacers)
+        {
+            w->show();
+        }
     }
     else
     {
@@ -866,6 +999,11 @@ void MainWindow::showMainButtons(bool show)
             mainButtonList->at(i)->hide();
         }
         titleImage->hide();
+
+        for(QWidget *w : *mainSpacers)
+        {
+            w->hide();
+        }
     }
 }
 
@@ -898,6 +1036,12 @@ void MainWindow::showMaps(bool show)
             maps->at(i)->show();
         }
         mapButton->show();
+
+        for(QWidget *w : *mapSpacers)
+        {
+            w->show();
+        }
+
     }
     else
     {
@@ -906,6 +1050,11 @@ void MainWindow::showMaps(bool show)
             maps->at(i)->hide();
         }
         mapButton->hide();
+
+        for(QWidget *w : *mapSpacers)
+        {
+            w->hide();
+        }
     }
 }
 

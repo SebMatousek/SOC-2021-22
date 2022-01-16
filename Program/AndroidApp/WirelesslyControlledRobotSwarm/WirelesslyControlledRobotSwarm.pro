@@ -10,11 +10,13 @@ CONFIG += c++11
 
 SOURCES += \
     clickablelabel.cpp \
+    joystick.cpp \
     main.cpp \
     mainwindow.cpp
 
 HEADERS += \
     clickablelabel.h \
+    joystick.h \
     mainwindow.h
 
 FORMS += \

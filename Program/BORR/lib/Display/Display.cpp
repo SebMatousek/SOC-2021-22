@@ -21,15 +21,9 @@ Display::Display()
 
     display.setTextColor(SSD1306_WHITE);
 
-    // Show initial display buffer contents on the screen --
-    // the library initializes this with an Adafruit splash screen.
-    display.clearDisplay();
-
-    display.display();
-    delay(2000);
-
     // Clear the buffer
     display.clearDisplay();
+    delay(1000);
 }
 
 void Display::clear(int lane)
@@ -41,8 +35,8 @@ void Display::clear(int lane)
     }
     else
     {
-        this->print("                       ", lane, 1);
-        atLane -= 1;
+        print("                       ", lane, 1);
+        atLane -= lane;
     }
 }
 

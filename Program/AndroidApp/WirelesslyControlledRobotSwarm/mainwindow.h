@@ -18,7 +18,10 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 
+#include <QMouseEvent>
+
 #include "clickablelabel.h"
+#include "joystick.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -46,7 +49,9 @@ private slots:
     void onSocketStateChanged(QAbstractSocket::SocketState socketState);
     void onReadyRead();
     void mapButtonClicked();
-    void loadImage();
+    void httpFinished();
+    void httpReadyRead();
+    void on_joystick_changed(float x, float y);
 private:
     Ui::MainWindow *ui;
 
@@ -86,8 +91,13 @@ private:
     QList<QChartView *> *maps;
     ClickableLabel *mapButton;
 
+
     QLabel *cameraLabel;
-    QByteArray *imgData;
+    Joystick *joystick;
+
+    QNetworkAccessManager qnam;
+    QNetworkReply *reply;
+    std::unique_ptr<QFile> file;
 
     const QTime startTime = QDateTime::currentDateTime().toLocalTime().time();
 
@@ -98,6 +108,10 @@ private:
     QScrollArea *scrollArea;
 
     QSize screenSize;
+
+    QList<QWidget *> *mapSpacers;
+    QList<QWidget *> *mainSpacers;
+    QList<QWidget *> *cameraSpacers;
 
     void setMainButtonPosition(ClickableLabel *button, int nth);
     void showMainButtons(bool show);
@@ -123,5 +137,8 @@ private:
     void readMessage(QString data, QString *name);
     void printDebug(QString data);
     void scrollToBeginning();
+    void downloadFile();
+    std::unique_ptr<QFile> openFileForWrite(const QString &fileName);
+    void updateCameraLabel();
 };
 #endif // MAINWINDOW_H

@@ -19,11 +19,9 @@ class Robot {
 public:
     Robot();
     float readTemp();
-
     float readBatteryStatus();
 
     void soundEnd();
-
     void soundNote(note_t note, uint8_t octave);
 
     int get_servoPos();
@@ -32,12 +30,12 @@ public:
     void motorSpeed(int motor, int speed);
     void bothMotorSpeed(int speed);
     int get_motor_speed(int motor);
-    void turn90(String direction);
-    void turnWheel(int motor, float rotations);
-    void turnWheels(float rotations0, float rotations1);
     void stopMotor(int motor);
     void stopMotors();
 
+    void turn90(String direction);
+    void turnWheel(int motor, float rotations);
+    void turnWheels(float rotations0, float rotations1);
     void turnByAngle(int angle);
 
     int get_enc_value(int motor);
@@ -48,26 +46,28 @@ public:
     void readGyro();
 
     void sendSensorData();
-
     String getSensorData();
     String readData();
 
     void countTurnAngle(int angle);
     void sendMapData();
 
-    void displayData();
+    //void displayBegin();
+    //void updateDisplay(int phase);
 
     const int servoMin = 0;
     const int servoMax = 180;
     const int revolutionClicks = 4172;
+
+    void debugOverWiFi(String data);
 
     sensors_event_t a, g, temp;
 
 private:
 
     //const String ROBOT_COLOR = "#Green";
-    //const String ROBOT_COLOR = "#Pink";
-    const String ROBOT_COLOR = "#Blue";
+    const String ROBOT_COLOR = "#Pink";
+    //const String ROBOT_COLOR = "#Blue";
     //const String ROBOT_COLOR = "#Golden";
 
     const float batteryMax = 3150.0;
@@ -84,7 +84,7 @@ private:
 
     #define OLED_RESET -1
     #define SCREEN_ADDRESS 0x3C
-    Display *screen = new Display();
+    //Display *screen = new Display();
 
     // Dallas Temperature sensor
     OneWire *oneWire = new OneWire(temperatureSensorPin);
@@ -119,11 +119,14 @@ private:
 
     int angleTurned = 0;
 
+    int lastPhase = -1;
+
     void soundBootUp();
-    void displayBegin();
     void servoBegin();
     void beginGyro();
     void wifiBegin();
     void soundConnected();
     void soundDataSent();
+    
+    String decodeRobotName();
 };

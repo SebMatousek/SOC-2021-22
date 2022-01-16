@@ -1,5 +1,41 @@
 #include "Robot.h"
 
+void Robot::debugOverWiFi(String data)
+{
+    client.print("@" + data);
+}
+
+/*void Robot::displayBegin()
+{
+    screen->print("Bezdratove", 1, 2);
+    screen->print(" ovladany ", 3, 2);
+    screen->print("roj robotu", 5, 2);
+}
+
+void Robot::updateDisplay(int phase)
+{
+    if(!(lastPhase == phase))
+    {
+        delay(100);
+        screen->clear();
+
+        screen->print(decodeRobotName() + "       " + String(readBatteryStatus()) + "%", 1);
+        screen->print("   " + String(phase), 3, 3);
+
+        delay(100);
+    }
+
+    lastPhase = phase;
+}*/
+
+String Robot::decodeRobotName()
+{
+    if(ROBOT_COLOR == "#Green") return "Zeleny";
+    if(ROBOT_COLOR == "#Pink") return "Ruzovy";
+    if(ROBOT_COLOR == "#Blue") return "Modry ";
+    if(ROBOT_COLOR == "#Golden") return "Zlaty ";
+}
+
 String Robot::readData()
 {
     if (client.available())
@@ -26,6 +62,7 @@ void Robot::soundDataSent()
 void Robot::sendSensorData()
 {
     client.print(getSensorData());
+    Serial.println("sent data");
 }
 
 String Robot::getSensorData()
@@ -405,14 +442,6 @@ void Robot::set_servoPos(int pos)
     }
 }
 
-void Robot::displayBegin()
-{
-    screen->clear();
-    screen->println("Bezdratove", 0, 2);
-    screen->println(" ovladany", 3, 2);
-    screen->println("roj robotu", 5, 2);  
-}
-
 float Robot::readTemp()
 {
     sensor->requestTemperatures();
@@ -448,22 +477,13 @@ void Robot::soundBootUp()
     delay(200);
 }
 
-void Robot::displayData()
-{
-    screen->clear(0);
-    screen->clear(1);
-    screen->clear(2);
-    screen->print("              " + String(readBatteryStatus()) + "%", 1, 1);
-}
-
 Robot::Robot()
 {
     Wire.begin();
-
-    displayBegin();
     
+    //displayBegin();
     soundBootUp();
-    screen->clear();
+    //screen->clear();
 
     Serial.begin(115200);
 
@@ -489,6 +509,4 @@ Robot::Robot()
     wifiBegin();
 
     servoBegin();
-
-    screen->print(ROBOT_COLOR.substring(1), 2.5, 3);
 }

@@ -1,0 +1,58 @@
+#include <Arduino.h>
+#include <WiFi.h>
+#include <Wire.h>
+#include <ESP32WebServer.h>
+#include <ArduCAM.h>
+#include <SPI.h>
+#include "memorysaver.h"
+
+// set GPIO17 as the slave select :
+const int CS = 16;
+
+ArduCAM myCAM(OV5642, CS);
+
+//Station mode you should put your ssid and password
+const char *ssid = "Matousek";      // Put your SSID here
+const char *password = "Kokorin12"; // Put your PASSWORD here
+
+const uint16_t port = 8090;
+const char * host = "10.0.0.27";
+
+static const size_t bufferSize = 2048;
+static uint8_t buffer[bufferSize] = {0xFF};
+uint8_t temp = 0, temp_last = 0;
+int i = 0;
+bool is_header = false;
+
+WiFiClient client;
+
+void setup()
+{
+  Serial.begin(115200);
+  
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("...");
+  }
+ 
+  Serial.print("WiFi connected with IP: ");
+  Serial.println(WiFi.localIP());
+
+  if (!client.connect(host, port)) {
+ 
+        Serial.println("Connection to host failed");
+ 
+        delay(1000);
+        return;
+  }
+
+  myCAM.setupCamera();
+  
+  client.print(myCAM.serverCapture());
+}
+
+void loop()
+{
+
+}
