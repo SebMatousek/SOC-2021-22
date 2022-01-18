@@ -268,15 +268,6 @@ MainWindow::MainWindow(QWidget *parent)
     cameraSpacers->append(w);
     pLayout->addWidget(cameraSpacers->at(0));
 
-    /*
-    for(int i = 0; i < pLayout->count(); i++)
-    {
-        pLayout->itemAt(i)->widget()->setStyleSheet("border: 5px solid red;");
-    }*/
-
-
-
-
     pWgt->setLayout(pLayout);
 
     //This sentence setwidget must be put in pwgt after all the contents are prepared, otherwise there is a problem with the display
@@ -351,6 +342,14 @@ void MainWindow::on_joystick_changed(float x, float y)
             tcpSockets->value("Golden")->write(QByteArray::number(j));
             lastJ = j;
             qDebug()<<j;
+        }
+    }
+    else
+    {
+        if(x == 0 && y == 0)
+        {
+            enableJoystick(true);
+            qDebug()<<"pls enable j";
         }
     }
 }
@@ -630,10 +629,10 @@ void MainWindow::readMessage(QString data, QString *name)
             qDebug()<<tcpSockets->values();
             qDebug()<<tcpSockets->keys();
 
-            if(data == "Golden")
+            /*if(data == "Golden")
             {
                 tcpSockets->value("Golden")->write("getPic");
-            }
+            }*/
         }
         else if(data.contains("M"))
         {
@@ -1046,26 +1045,27 @@ void MainWindow::toCameraPage()
 
 void MainWindow::enableJoystick(bool en)
 {
-    if(!en)
+    if(en)
     {
-        joystick->setEnabled(false);
-
-        qDebug()<<tcpSockets->value("Golden");
-
-        if(tcpSockets->value("Golden") != NULL)
-        {
-            tcpSockets->value("Golden")->write("disableJoystick");
-        }
-    }
-    else
-    {
-        qDebug()<<tcpSockets->value("Golden");
+        //qDebug()<<tcpSockets->value("Golden");
 
         if(tcpSockets->value("Golden") != NULL)
         {
             tcpSockets->value("Golden")->write("enableJoystick");
         }
     }
+    else if(joystick->isEnabled())
+    {
+        joystick->setEnabled(false);
+
+        //qDebug()<<tcpSockets->value("Golden");
+
+        if(tcpSockets->value("Golden") != NULL)
+        {
+            tcpSockets->value("Golden")->write("disableJoystick");
+        }
+    }
+
 }
 
 void MainWindow::showCamera(bool show)
@@ -1074,7 +1074,6 @@ void MainWindow::showCamera(bool show)
     {
         cameraLabel->show();
         joystick->show();
-        enableJoystick(true);
 
         for(QWidget *w : *cameraSpacers)
         {

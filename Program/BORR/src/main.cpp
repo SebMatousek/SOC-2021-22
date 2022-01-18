@@ -5,6 +5,9 @@
 
 #define CAMERA
 
+const char *ssid = "Matousek";      // Put your SSID here
+const char *password = "Kokorin12"; // Put your PASSWORD here
+
 #ifdef CAMERA
 #include <Wire.h>
 #include <ESP32WebServer.h>
@@ -16,10 +19,6 @@
 const int CS = 16;
 
 ArduCAM myCAM(OV5642, CS);
-
-//Station mode you should put your ssid and password
-const char *ssid = "Matousek";      // Put your SSID here
-const char *password = "Kokorin12"; // Put your PASSWORD here
 
 static const size_t bufferSize = 2048;
 static uint8_t buffer[bufferSize] = {0xFF};
@@ -37,7 +36,7 @@ void start_capture()
 
 void camCapture(ArduCAM myCAM)
 {
-  WiFiClient client = server.client();
+  WiFiClient serverClient = server.client();
   uint32_t len = myCAM.read_fifo_length();
   if (len >= MAX_FIFO_SIZE) //8M
   {
@@ -51,7 +50,7 @@ void camCapture(ArduCAM myCAM)
   myCAM.CS_LOW();
   myCAM.set_fifo_burst();
 
-  if (!client.connected())
+  if (!serverClient.connected())
     return;
 
   String response = "HTTP/1.1 200 OK\r\n";
@@ -69,10 +68,10 @@ void camCapture(ArduCAM myCAM)
     {
       buffer[i++] = temp; //save the last  0XD9
       //Write the remain bytes in the buffer
-      if (!client.connected())
+      if (!serverClient.connected())
         break;
 
-      client.write(&buffer[0], i);
+      serverClient.write(&buffer[0], i);
 
       is_header = false;
       i = 0;
@@ -87,10 +86,10 @@ void camCapture(ArduCAM myCAM)
       else
       {
         //Write bufferSize bytes image data to file
-        if (!client.connected())
+        if (!serverClient.connected())
           break;
 
-        client.write(&buffer[0], bufferSize);
+        serverClient.write(&buffer[0], bufferSize);
 
         i = 0;
         buffer[i++] = temp;
@@ -127,7 +126,7 @@ void handleNotFound()
   message += server.args();
   message += "\n";
   server.send(200, "text/plain", message);
-  Serial.println(message);
+  //Serial.println(message);
 
   if (server.hasArg("ql"))
   {
@@ -190,18 +189,6 @@ void setupCamera()
   Serial.print(F("Connecting to "));
   Serial.println(ssid);
 
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(F("."));
-  }
-
-  Serial.println(F("WiFi connected"));
-  Serial.println("");
-  Serial.println(WiFi.localIP());
-
   // Start the server
   server.on("/capture", HTTP_GET, serverCapture);
   server.onNotFound(handleNotFound);
@@ -214,11 +201,6 @@ TaskHandle_t robotTask;
 TaskHandle_t networkTask;
 
 Robot *robot;
-
-#ifndef CAMERA
-const char* ssid = "Matousek";
-const char* password =  "Kokorin12";
-#endif
 
 const uint16_t port = 8090;
 const char * host = "10.0.0.33";
@@ -288,22 +270,51 @@ void recieve_data()
   if(client.available())
   {
     String message = client.readString();
+    Serial.println(message);
 
-    if(message == "map")
+    if(message.indexOf("map" >= 0))
     {
       Serial.println("start mapping");
       mapping = true;
     }
-    else if(message == "pause")
+    if(message.indexOf("pause") >= 0)
     {
       Serial.println("pause mapping");
       mapping = false;
     }
-    else if(joystickEnabled)
+    if(message.indexOf("disableJoystick") >= 0)
+    {
+      Serial.println("disable j");
+      if(robot->ROBOT_COLOR == "#Golden")
+      {
+        joystickEnabled = false;
+        mapping = wasMapping;
+        firstEnable = true;
+      }
+    }
+    if(message.indexOf("enableJoystick") >= 0)
+    {
+      Serial.println("enable j");
+      if(robot->ROBOT_COLOR == "#Golden")
+      {
+        joystickEnabled = true;
+        stepper = 0;
+        wasMapping = mapping;
+        mapping = false;
+        firstEnable = true;
+      }
+    }
+
+    if(joystickEnabled)
     {
       int direction = message.toInt();
 
-      Serial.println(message);
+      //Serial.println(message);
+
+      if(direction % 10 == 0)
+      {
+        direction = 0;
+      }
 
       switch(direction)
       {
@@ -333,35 +344,13 @@ void recieve_data()
           robot->set_motor_speed(1, -motor_speed);
           break;
         case 7:
-          robot->set_motor_speed(0, motor_speed);
-          robot->set_motor_speed(1, -motor_speed);
+          robot->set_motor_speed(0, -motor_speed);
+          robot->set_motor_speed(1, motor_speed);
           break;
         case 8:
           robot->set_motor_speed(0, motor_speed / 1.5);
           robot->set_motor_speed(1, motor_speed);
           break;
-      }
-    }
-
-    if(message.indexOf("disableJoystick") >= 0)
-    {
-      Serial.println("disable j");
-      if(robot->ROBOT_COLOR == "#Golden")
-      {
-        joystickEnabled = false;
-        mapping = wasMapping;
-        firstEnable = true;
-      }
-    }
-    if(message.indexOf("enableJoystick") >= 0)
-    {
-      Serial.println("enable j");
-      if(robot->ROBOT_COLOR == "#Golden")
-      {
-        joystickEnabled = true;
-        stepper = 0;
-        wasMapping = mapping;
-        mapping = false;
       }
     }
 
@@ -404,7 +393,7 @@ void getToWall()
   {
     lidar_dist = robot->get_lidar_distance();
 
-    Serial.println(lidar_dist);
+    //Serial.println(lidar_dist);
 
     delay(20);
   }
@@ -451,11 +440,11 @@ void checkSide()
   Serial.println("check side");
   robot->set_servo_position(0);
 
-  delay(200);
+  delay(160);
 
   int lidarValue = robot->get_lidar_distance();
 
-  if (lidarValue > lastDistance + stopDistance)
+  if (lidarValue > lastDistance + stopDistance && lastDistance > 0)
   {
     robot->turnWheels(1.05, 1.05);
 
@@ -503,11 +492,11 @@ bool checkFront()
   Serial.println("check front");
   robot->set_servo_position(95);
 
-  delay(140);
+  delay(160);
 
   int lidarValue = robot->get_lidar_distance();
 
-  if (lidarValue < stopDistance && lidarValue > 0)
+  if (lidarValue < stopDistance && lidarValue > 0 && lidarValue < 8000)
   {
     return false;
   }
