@@ -3,10 +3,10 @@
 
 #include "Robot.h"
 
-#define CAMERA
+//#define CAMERA
 
-const char *ssid = "Matousek";      // Put your SSID here
-const char *password = "Kokorin12"; // Put your PASSWORD here
+const char *ssid = "UREL-SC-646-V-2.4G";      // Put your SSID here
+const char *password = "inte2lup"; // Put your PASSWORD here
 
 #ifdef CAMERA
 #include <Wire.h>
@@ -203,11 +203,18 @@ TaskHandle_t networkTask;
 Robot *robot;
 
 const uint16_t port = 8090;
-const char * host = "10.0.0.33";
+const char * host = "10.0.0.3";
 
 WiFiClient client;
 
+#ifdef CAMERA
+int motor_speed = 60;
+int turn_angle = 100;
+#else
 int motor_speed = 100;
+int turn_angle = 95;
+#endif
+
 bool mapping = false;
 int stepper = 0;
 
@@ -272,7 +279,7 @@ void recieve_data()
     String message = client.readString();
     Serial.println(message);
 
-    if(message.indexOf("map" >= 0))
+    if(message.indexOf("map") >= 0)
     {
       Serial.println("start mapping");
       mapping = true;
@@ -430,7 +437,7 @@ void alignWithWall()
 
   //Serial.println(bestAngle);
 
-  robot->turnByAngle(90 - bestAngle -95);
+  robot->turnByAngle(90 - bestAngle - turn_angle);
 
   stepper = 2;
 }
@@ -450,7 +457,7 @@ void checkSide()
 
     sendMapData();
 
-    robot->turnByAngle(100);
+    robot->turnByAngle(turn_angle +5);
     countTurnAngle(90);
 
     delay(165);
@@ -473,7 +480,7 @@ void checkSide()
   {
     if (robot->get_motor_speed(0) > 55 + motorSpeedCushion)
     {
-      robot->set_motor_speed(0, robot->get_motor_speed(0) - motorSpeedCushion);
+      robot->set_motor_speed(0, robot->get_motor_speed(0) - motorSpeedCushion*1.5);
     }
 
     //Serial.println("to close");
@@ -496,7 +503,7 @@ bool checkFront()
 
   int lidarValue = robot->get_lidar_distance();
 
-  if (lidarValue < stopDistance && lidarValue > 0 && lidarValue < 8000)
+  if (lidarValue < stopDistance && lidarValue > 0 && lidarValue < 5000)
   {
     return false;
   }
@@ -521,6 +528,8 @@ void rideAlongWall()
 
     robot->turnByAngle(-90);
     countTurnAngle(-90);
+
+    delay(250);
 
     robot->set_motor_both_speed(motor_speed);
   }

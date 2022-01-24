@@ -9,6 +9,7 @@
 #include <QtCharts/QLineSeries>
 
 #include <QValueAxis>
+#include <QScatterSeries>
 
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -43,6 +44,7 @@ signals:
 
 public slots:
     void keyReleaseEvent(QKeyEvent *event);
+    bool eventFilter(QObject *obj, QEvent *event);
 private slots:
     void onClicked();
     void incomingConnection();
@@ -63,6 +65,7 @@ private:
 
     const QList<QString> robotColorsHex = {"#8be800", "#ff6ec2", "#74c5ff", "#EDD323"};
     const QStringList robotNames = {"Green", "Pink", "Blue", "Golden"};
+    const QStringList czNames = {"Zeleného", "Růžového", "Modrého", "Zlatého"};
 
     //QList<QChart *> *charts;
 
@@ -113,6 +116,12 @@ private:
     QList<QWidget *> *mapSpacers;
     QList<QWidget *> *mainSpacers;
     QList<QWidget *> *cameraSpacers;
+
+    QColor white = QColor(240, 240, 240);
+    QColor black = QColor(16, 16, 16);
+    QColor grey = QColor(25, 25, 25);
+
+    int mapW;
 
     void setMainButtonPosition(ClickableLabel *button, int nth);
     void showMainButtons(bool show);

@@ -9,19 +9,29 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+
+    this->statusBar()->hide();
+
     screenSize = QGuiApplication::primaryScreen()->size();
     ui->centralwidget->resize(screenSize.width(), screenSize.height());
     this->resize(screenSize.width(), screenSize.height());
 
     scrollArea = new QScrollArea(this);
+    scrollArea->installEventFilter(this);
 
     scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
     scrollArea->horizontalScrollBar()->setEnabled(false);
 
+    QPalette centralPallette = QPalette();
+    centralPallette.setColor(QPalette::Window, grey);
 
-    QWidget * pWgt = new QWidget;
+    scrollArea->setAutoFillBackground(true);
+    scrollArea->setPalette(centralPallette);
+
+
+    QWidget *pWgt = new QWidget;
     pWgt->resize(screenSize.width(), screenSize.height());
 
     QVBoxLayout *pLayout = new QVBoxLayout();
@@ -161,12 +171,19 @@ MainWindow::MainWindow(QWidget *parent)
     debugBrowser = new QTextBrowser(this);
     debugBrowser->setFixedSize(screenSize.width(), screenSize.height());
 
+    debugBrowser->setStyleSheet("background-color: rgb(25, 25, 25);");
+
+    debugBrowser->setTextColor(white);
+    debugBrowser->append("Zprávy od robotů: \n");
+
     pLayout->addWidget(debugBrowser);
     pLayout->setAlignment(debugBrowser, Qt::AlignCenter);
 
     debugBrowser->hide();
 
     //Map
+    mapW = graphWidth;
+
     maps = new QList<QChartView *>();
     mapData = new QList<QList<QList<int> *> *>();
     QList<QList<int> *> *startMapData1 = new QList<QList<int> *>();
@@ -197,6 +214,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     int mapBWidth = screenSize.width() * 0.7;
     int mapBHeight = screenSize.height() * 0.08;
+
 
     mapButton->setMinimumSize(mapBWidth, mapBHeight);
     mapButton->setMaximumWidth(mapBWidth);
@@ -248,8 +266,6 @@ MainWindow::MainWindow(QWidget *parent)
     pLayout->addWidget(joystick);
     pLayout->setAlignment(joystick, Qt::AlignCenter);
     joystick->hide();
-    joystick->setX(0.5);
-    joystick->setY(0.5);
 
     connect(joystick, &Joystick::xChanged, this, [this](float x){
         on_joystick_changed(x, joystick->y());
@@ -268,6 +284,11 @@ MainWindow::MainWindow(QWidget *parent)
     cameraSpacers->append(w);
     pLayout->addWidget(cameraSpacers->at(0));
 
+    /*for(int i = 0; i < pLayout->count(); i++)
+    {
+            pLayout->itemAt(i)->widget()->setStyleSheet("border: 5px solid red;");
+    }*/
+
     pWgt->setLayout(pLayout);
 
     //This sentence setwidget must be put in pwgt after all the contents are prepared, otherwise there is a problem with the display
@@ -275,7 +296,30 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(scrollArea);
 
     toMainButtonPage();
+}
 
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    //qDebug()<<event->type();
+
+    if(event->type() == QEvent::Scroll)
+    {
+        QScrollEvent *ev = dynamic_cast<QScrollEvent *>(event);
+
+        //qDebug()<<"puvodni event X: "<<ev->overshootDistance().x() <<"; Y: " <<ev->overshootDistance().y();
+
+        if(ev->overshootDistance().x() != 0 || ev->overshootDistance().y() != 0)
+        {
+            QScrollEvent *myEvent = new QScrollEvent(QPointF(ev->contentPos().x(), ev->contentPos().y()), QPointF(0, 0), ev->scrollState());
+            QCoreApplication::postEvent(scrollArea, myEvent);
+
+            ev->accept();
+
+            return true;
+        }
+    }
+
+    return QWidget::eventFilter(obj, event);
 }
 
 void MainWindow::on_joystick_changed(float x, float y)
@@ -341,7 +385,7 @@ void MainWindow::on_joystick_changed(float x, float y)
         {
             tcpSockets->value("Golden")->write(QByteArray::number(j));
             lastJ = j;
-            qDebug()<<j;
+            //qDebug()<<j;
         }
     }
     else
@@ -349,7 +393,7 @@ void MainWindow::on_joystick_changed(float x, float y)
         if(x == 0 && y == 0)
         {
             enableJoystick(true);
-            qDebug()<<"pls enable j";
+            //qDebug()<<"pls enable j";
         }
     }
 }
@@ -453,14 +497,12 @@ QLineSeries * MainWindow::createMapSeries(QList<QList<int> *> *mapData, int nth)
 
     for(int i = 0; i < mapData->length(); i++)
     {
-        series->append(mapData->at(i)->at(0) / 100, mapData->at(i)->at(1) / 100);
+        series->append(mapData->at(i)->at(0), mapData->at(i)->at(1));
     }
 
     QPen pen = series->pen();
     pen.setWidth(3);
     pen.setColor(QColor(robotColorsHex.at(nth)));
-
-    series->setPen(pen);
 
     return series;
 }
@@ -468,17 +510,23 @@ QLineSeries * MainWindow::createMapSeries(QList<QList<int> *> *mapData, int nth)
 QChart * MainWindow::newMapChart(QList<QList<int> *> *mapData, int nth)
 {
     QChart *chart = new QChart();
-    chart->legend()->hide();
     chart->addSeries(createMapSeries(mapData, nth));
 
-    chart->setTitle("Mapa Robota " + QString::number(nth + 1));
+    for(QList<int> *dataLists: *mapData)
+    {
+        qDebug()<<"map data";
+        qDebug()<<dataLists->at(0);
+        qDebug()<<dataLists->at(1);
+    }
+
+    chart->setTitle("Mapa " + czNames.at(nth) + " Robota");
 
     int maxData = 0;
 
     for(int i = 0; i < mapData->length(); i++)
     {
-        int x = mapData->at(i)->at(0) / 100;
-        int y = mapData->at(i)->at(1) / 100;
+        int x = mapData->at(i)->at(0);
+        int y = mapData->at(i)->at(1);
 
         if(maxData < abs(x))
         {
@@ -493,8 +541,24 @@ QChart * MainWindow::newMapChart(QList<QList<int> *> *mapData, int nth)
     QValueAxis *axisX = new QValueAxis();
     QValueAxis *axisY = new QValueAxis();
 
+    axisX->setTitleText("Vzdálenost [cm]");
+    axisX->setLabelFormat("%i");
+
+    axisX->setLabelsColor(white);
+    axisX->setTitleBrush(QBrush(white));
+    axisX->setGridLineColor(white);
+
+    axisY->setTitleText("Vzdálenost [cm]");
+    axisY->setLabelFormat("%i");
+
+    axisY->setLabelsColor(white);
+    axisY->setTitleBrush(QBrush(white));
+    axisY->setGridLineColor(white);
+
     axisX->setMinorTickCount(2);
     axisY->setMinorTickCount(2);
+
+
 
     if(maxData != 0)
     {
@@ -513,7 +577,20 @@ QChart * MainWindow::newMapChart(QList<QList<int> *> *mapData, int nth)
     chart->series().at(0)->attachAxis(axisX);
     chart->series().at(0)->attachAxis(axisY);
 
+
+    chart->setBackgroundRoundness(0);
+
     chart->legend()->hide();
+
+    QPalette centralPallette = QPalette();
+    centralPallette.setColor(QPalette::Window, black);
+
+    chart->setAutoFillBackground(true);
+    chart->setPalette(centralPallette);
+    chart->setTitleBrush(QBrush(white));
+
+
+    chart->setBackgroundBrush(QBrush(QPixmap(":/img/" + robotNames.at(nth) + "Map.png").scaledToWidth(mapW)));
 
     return chart;
 }
@@ -524,11 +601,11 @@ void MainWindow::debugCheckForOverflow()
     int endls = control.count("\n");
     //qDebug()<<control.count("\n");
 
-    if(endls > 38)
+    if(endls > 37)
     {
         //qDebug()<<"bigger";
 
-        endls -= 38;
+        endls -= 37;
 
         for(int i = 0; i <= endls; i++)
         {
@@ -536,6 +613,8 @@ void MainWindow::debugCheckForOverflow()
             //qDebug()<<control;
             control.remove(0, control.indexOf("\n") + 1);
         }
+
+        control.prepend("Zprávy od robotů: \n\n");
 
         debugBrowser->clear();
         debugBrowser->setText(control);
@@ -591,15 +670,15 @@ void MainWindow::readMessage(QString data, QString *name)
         }
         else if(data.contains("#"))
         {
-            qDebug()<<"name change";
+            //qDebug()<<"name change";
 
             data = data.remove(0, 1);
 
             tcpSockets->remove(data);
 
-            qDebug()<<"Before name change";
-            qDebug()<<tcpSockets->values();
-            qDebug()<<tcpSockets->keys();
+            //qDebug()<<"Before name change";
+            //qDebug()<<tcpSockets->values();
+            //qDebug()<<tcpSockets->keys();
 
             QMap<QString, QTcpSocket *> *swapper = new QMap<QString, QTcpSocket *>();
 
@@ -619,15 +698,15 @@ void MainWindow::readMessage(QString data, QString *name)
                     swapper->insert(data, tcpSockets->value(compare));
                 }
 
-                qDebug()<<compare;
-                qDebug()<<name;
+                //qDebug()<<compare;
+                //qDebug()<<name;
             }
 
             tcpSockets->swap(*swapper);
 
-            qDebug()<<"After name change";
-            qDebug()<<tcpSockets->values();
-            qDebug()<<tcpSockets->keys();
+            //qDebug()<<"After name change";
+            //qDebug()<<tcpSockets->values();
+            //qDebug()<<tcpSockets->keys();
 
             /*if(data == "Golden")
             {
@@ -636,13 +715,13 @@ void MainWindow::readMessage(QString data, QString *name)
         }
         else if(data.contains("M"))
         {
-            qDebug()<<"map";
+            //qDebug()<<"map";
 
             int senderIndex = robotNames.indexOf(*name);
 
             if(senderIndex == -1)
             {
-                qDebug()<<"unknown sender!!!";
+                //qDebug()<<"unknown sender!!!";
                 return;
             }
 
@@ -650,7 +729,7 @@ void MainWindow::readMessage(QString data, QString *name)
 
             QStringList values = data.split("%");
 
-            qDebug()<<values;
+            //qDebug()<<"split values "<<values;
 
             int y = 0;
             int x = 0;
@@ -687,8 +766,9 @@ void MainWindow::readMessage(QString data, QString *name)
             mapData->at(senderIndex)->append(new QList<int>({x, y}));
 
             refreshMaps(senderIndex);
-            qDebug()<<QString::number(senderIndex);
+            //qDebug()<<QString::number(senderIndex);
 
+            /*
             int dist = values.at(2).toInt();
             int spd = values.at(3).toInt() / 100;
 
@@ -698,18 +778,17 @@ void MainWindow::readMessage(QString data, QString *name)
             speed->at(senderIndex)->append(spd);
 
             if(graphs->at(0)->isVisible()) refreshGraphs();
-
-
+            */
         }
         else if(data.contains("%"))
         {
-            qDebug()<<"sensor data";
+            //qDebug()<<"sensor data";
 
             int senderIndex = robotNames.indexOf(*name);
 
             if(senderIndex == -1)
             {
-                qDebug()<<"unknown sender!!!";
+                //qDebug()<<"unknown sender!!!";
                 return;
             }
 
@@ -717,7 +796,7 @@ void MainWindow::readMessage(QString data, QString *name)
             //qDebug()<<"here ";
 
             QStringList values = data.split("%");
-            qDebug()<<"haha" << values;
+            //qDebug()<<"haha" << values;
 
             int temp = values.at(0).toInt();
             int bat = values.at(1).toInt();
@@ -867,9 +946,17 @@ QChart * MainWindow::createGraphChart(QList<QList<int> *> data, QString name, QS
     axisX->setTitleText("Čas [s]");
     axisX->setLabelFormat("%i");
 
+    axisX->setTitleBrush(QBrush(white));
+    axisX->setGridLineColor(white);
+    axisX->setLabelsColor(white);
+
     QValueAxis *axisY = new QValueAxis();
     axisY->setTitleText(valuesNames);
     axisY->setLabelFormat("%i");
+
+    axisY->setLabelsColor(white);
+    axisY->setTitleBrush(QBrush(white));
+    axisY->setGridLineColor(white);
 
     int maxData = max;
 
@@ -928,6 +1015,14 @@ QChart * MainWindow::createGraphChart(QList<QList<int> *> data, QString name, QS
         chart->series().at(i)->attachAxis(axisX);
         chart->series().at(i)->attachAxis(axisY);
     }
+
+    QPalette centralPallette = QPalette();
+    centralPallette.setColor(QPalette::Window, black);
+
+    chart->setAutoFillBackground(true);
+    chart->setPalette(centralPallette);
+    chart->setBackgroundBrush(black);
+    chart->setTitleBrush(QBrush(white));
 
     chart->setTitle(name);
 

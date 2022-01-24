@@ -50,9 +50,9 @@ public:
     String decodeRobotName();
 
     //const String ROBOT_COLOR = "#Green";
-    //const String ROBOT_COLOR = "#Pink";
+    const String ROBOT_COLOR = "#Pink";
     //const String ROBOT_COLOR = "#Blue";
-    const String ROBOT_COLOR = "#Golden";
+    //const String ROBOT_COLOR = "#Golden";
 
     int revolutionClicks = 4172;
 
