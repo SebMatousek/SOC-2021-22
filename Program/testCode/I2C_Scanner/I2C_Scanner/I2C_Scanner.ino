@@ -13,6 +13,7 @@ void setup() {
  
 void loop() {
   byte error, address;
+  
   int nDevices;
   Serial.println("Scanning...");
   nDevices = 0;
